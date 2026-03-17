@@ -109,7 +109,7 @@ public static class ReihoRequestsEndpointRouteBuilderExtensions
         {
             var hasParameterlessCtor = typeof(TRequest).GetConstructor(Type.EmptyTypes) != null;
 
-            if (ctx.Request.ContentLength == 0)
+            if (ctx.Request.ContentLength is null or 0)
             {
                 if (hasParameterlessCtor)
                     return (true, (TRequest)Activator.CreateInstance(typeof(TRequest))!);

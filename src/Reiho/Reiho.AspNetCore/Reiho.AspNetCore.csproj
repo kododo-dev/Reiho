@@ -6,10 +6,11 @@
   
   <PropertyGroup>
     <PackageId>Kododo.Reiho.AspNetCore</PackageId>
-    <Version>0.0.1</Version>
+    <Version>0.0.2</Version>
     <Authors>Kododo</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/kododo-dev/Reiho</RepositoryUrl>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
   
 </Project>
