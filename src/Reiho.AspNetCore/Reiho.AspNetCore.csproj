@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include=".nuget\logo.png" Pack="true" PackagePath="\" />
+    <None Include=".nuget\README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+  
+  <PropertyGroup>
+    <PackageId>Kododo.Reiho.AspNetCore</PackageId>
+    <Version>0.0.4</Version>
+    <Authors>Kododo</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/kododo-dev/Reiho</RepositoryUrl>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageIcon>logo.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  
+</Project>
