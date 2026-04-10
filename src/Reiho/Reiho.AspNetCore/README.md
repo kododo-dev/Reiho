@@ -1,199 +1,183 @@
 # Reiho.AspNetCore
 
-A lightweight and structured request/handler abstraction layer for ASP.NET Core Minimal APIs, designed for scalability, maintainability, and clean architecture.
-
----
-
-## Overview
-
-**Reiho.AspNetCore** introduces a consistent pattern for handling application logic using request and handler abstractions. It reduces boilerplate while maintaining explicit structure, making it suitable for both small services and large-scale systems.
-
-The library is optimized for:
-
-* Clean Architecture
-* Vertical Slice Architecture
-* Minimal API-based services
-
----
-
-## Key Features
-
-* Structured request/handler pattern (`IRequest`, `IRequestHandler`)
-* Automatic dependency injection registration
-* Convention-based endpoint mapping
-* Seamless integration with ASP.NET Core Minimal APIs
-* Minimal overhead and zero unnecessary abstractions
+Lightweight request/handler abstraction for ASP.NET Core Minimal APIs, plus a helper for serving embedded SPAs.
 
 ---
 
 ## Installation
 
-Install the package via NuGet:
-
-```bash id="y3d7k2"
+```bash
 dotnet add package Kododo.Reiho.AspNetCore
 ```
 
-Or via Package Manager:
-
-```powershell id="g1s8lp"
-Install-Package Kododo.Reiho.AspNetCore
-```
-
 ---
 
-## Quick Start
+## Request / Handler
 
-### Define a Request
+### Define a request
 
-```csharp id="qj2k1v"
-public sealed class CreateUserRequest : IRequest
-{
-    public string Name { get; init; } = default!;
-}
+Without a return value:
+
+```csharp
+public sealed record DeleteUser(int Id) : IRequest;
 ```
 
-Or with a response:
+With a return value:
 
-```csharp id="z0pl8x"
-public sealed class GetUserRequest : IRequest<UserDto>
-{
-    public int Id { get; init; }
-}
+```csharp
+public sealed record GetUser(int Id) : IRequest<UserDto>;
 ```
 
----
+### Implement a handler
 
-### Implement a Handler
-
-```csharp id="t4a9mn"
-public sealed class CreateUserHandler : IRequestHandler<CreateUserRequest>
+```csharp
+public sealed class DeleteUserHandler : IRequestHandler<DeleteUser>
 {
-    public Task HandleAsync(CreateUserRequest request, CancellationToken ct)
+    public Task HandleAsync(DeleteUser request, CancellationToken ct)
     {
-        // Business logic
+        // ...
         return Task.CompletedTask;
     }
 }
-```
 
-With a response:
-
-```csharp id="k9w2rb"
-public sealed class GetUserHandler : IRequestHandler<GetUserRequest, UserDto>
+public sealed class GetUserHandler : IRequestHandler<GetUser, UserDto>
 {
-    public Task<UserDto> HandleAsync(GetUserRequest request, CancellationToken ct)
+    public Task<UserDto> HandleAsync(GetUser request, CancellationToken ct)
     {
-        return Task.FromResult(new UserDto
-        {
-            Id = request.Id
-        });
+        return Task.FromResult(new UserDto { Id = request.Id });
     }
 }
 ```
 
----
+### Register handlers
 
-### Register Services
-
-```csharp id="a7m3zs"
+```csharp
+// Scans the calling assembly
 builder.Services.AddRequestHandlers();
-```
 
-Or limit scanning scope:
-
-```csharp id="h2c9xp"
+// Explicit assembly — recommended when calling from a library or if auto-detection fails
 builder.Services.AddRequestHandlers(typeof(Program).Assembly);
 ```
 
----
+### Map endpoints
 
-### Map Endpoints
-
-```csharp id="d8l1vf"
+```csharp
+// Maps all requests found in the calling assembly
 app.MapRequests();
-```
 
-With base path:
+// Explicit assembly
+app.MapRequests(typeof(Program).Assembly);
 
-```csharp id="p6x4qe"
-app.MapRequests("/api");
-```
-
----
-
-## Runtime Behavior
-
-### Endpoint Generation
-
-Endpoints are generated automatically using conventions:
-
-```
-POST /CreateUserRequest
-POST /GetUserRequest
+// With a base path — use MapGroup
+app.MapGroup("/api").MapRequests(typeof(Program).Assembly);
 ```
 
 ---
 
-### Request Processing
+## Conventions
 
-* Requests are resolved from the HTTP body (JSON)
-* If no body is provided:
+Each request type is mapped to a `POST` endpoint named after the type:
 
-    * A parameterless constructor is used (if available)
-    * Otherwise, request is rejected (`400 Bad Request`)
+```
+POST /GetUser
+POST /DeleteUser
+```
 
----
+**Request body:**
 
-### Response Handling
+| Situation | Behaviour |
+|---|---|
+| Body present | Deserialized from JSON |
+| No body, parameterless constructor exists | Empty instance created |
+| No body, no parameterless constructor | `400 Bad Request` |
 
-| Request Type        | Result                |
-| ------------------- | --------------------- |
-| `IRequest`          | `204 No Content`      |
-| `IRequest<TResult>` | `200 OK` with payload |
+**Response:**
 
----
-
-## Design Principles
-
-Reiho is built around the following principles:
-
-* **Explicit over implicit** – clear separation of concerns
-* **Convention over configuration** – minimal setup required
-* **Single responsibility** – each handler handles one use case
-* **Scalability** – suitable for modular and distributed systems
+| Request type | Status | Body |
+|---|---|---|
+| `IRequest` | `204 No Content` | — |
+| `IRequest<TResult>` | `200 OK` | JSON |
 
 ---
 
-## Use Cases
+## Embedded SPA
 
-* Microservices
-* Modular monoliths
-* Internal APIs
-* Rapid prototyping with clean boundaries
+Serves a single-page application bundled as embedded resources, with automatic base path injection and aggressive caching for static assets.
+
+### Project setup
+
+Add to your `.csproj`:
+
+```xml
+<EmbeddedResource Include="Frontend\dist\**\*" />
+<GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+```
+
+Place `__BASE_PATH__` somewhere in your `index.html` — it is replaced at runtime with the actual mount path so the SPA router works correctly regardless of where it is mounted:
+
+```html
+<script>window.__BASE_PATH__ = '__BASE_PATH__'</script>
+```
+
+### Mount
+
+```csharp
+app.MapEmbeddedSpa(
+    path:     "/ui",
+    assembly: Assembly.GetExecutingAssembly(),
+    rootPath: "Frontend/dist");
+```
+
+`rootPath` defaults to `"SPA/dist"` if not specified.
+
+Returns a `RouteGroupBuilder` — chain standard ASP.NET Core conventions directly:
+
+```csharp
+app.MapEmbeddedSpa("/ui", Assembly.GetExecutingAssembly(), "Frontend/dist")
+   .RequireAuthorization();
+```
+
+### Custom base path placeholder
+
+```csharp
+app.MapEmbeddedSpa("/ui", Assembly.GetExecutingAssembly(), "Frontend/dist",
+    basePathPlaceholder: "%%BASE%%");
+```
+
+### Caching behaviour
+
+| File | Cache-Control |
+|---|---|
+| `index.html` | `no-store` |
+| All other assets | `public, max-age=31536000, immutable` |
+
+Files are read once and cached in memory. Multiple SPAs mounted at different paths are cached independently.
 
 ---
 
-## Example Application
+## Full example
 
-```csharp id="s4u8wr"
+```csharp
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRequestHandlers();
 
 var app = builder.Build();
 
-app.MapRequests("/api");
+app.MapGroup("/api").MapRequests(typeof(Program).Assembly);
+
+app.MapEmbeddedSpa("/ui", Assembly.GetExecutingAssembly(), "Frontend/dist")
+   .RequireAuthorization();
 
 app.Run();
 ```
 
 ---
 
-## Versioning & Compatibility
+## Requirements
 
-* Designed for modern ASP.NET Core applications
-* Supports .NET 8+
+- .NET 8 or later
+- ASP.NET Core
 
 ---
 

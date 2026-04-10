@@ -1,8 +1,6 @@
 # Reiho.AspNetCore
 
-Lightweight request/handler abstraction for ASP.NET Core Minimal APIs.
-
----
+Lightweight request/handler abstraction for ASP.NET Core Minimal APIs, plus a helper for serving embedded SPAs.
 
 ## Install
 
@@ -10,61 +8,53 @@ Lightweight request/handler abstraction for ASP.NET Core Minimal APIs.
 dotnet add package Kododo.Reiho.AspNetCore
 ```
 
----
-
-## Quick Example
-
-### Define request
+## Request / Handler
 
 ```csharp
-public sealed class GetUserRequest : IRequest<UserDto>
+// Define
+public sealed record GetUser(int Id) : IRequest<UserDto>;
+
+// Handle
+public sealed class GetUserHandler : IRequestHandler<GetUser, UserDto>
 {
-    public int Id { get; init; }
+    public Task<UserDto> HandleAsync(GetUser request, CancellationToken ct)
+        => Task.FromResult(new UserDto { Id = request.Id });
 }
-```
 
-### Create handler
-
-```csharp
-public sealed class GetUserHandler : IRequestHandler<GetUserRequest, UserDto>
-{
-    public Task<UserDto> HandleAsync(GetUserRequest request, CancellationToken ct)
-    {
-        return Task.FromResult(new UserDto { Id = request.Id });
-    }
-}
-```
-
-### Setup
-
-```csharp
+// Register & map
 builder.Services.AddRequestHandlers();
-app.MapRequests("/api");
+app.MapGroup("/api").MapRequests(typeof(Program).Assembly);
+// → POST /api/GetUser
 ```
 
----
+Requests without a return value use `IRequest` / `IRequestHandler<T>` and return `204 No Content`.
 
-## How it works
+## Request body behaviour
 
-* Requests are mapped automatically to HTTP endpoints
-* Handlers are discovered via assembly scanning
-* Endpoints use `POST` by default
+| Situation | Result |
+|---|---|
+| Body present | Deserialized from JSON |
+| No body, parameterless constructor exists | Empty instance created |
+| No body, no parameterless constructor | `400 Bad Request` |
 
-Example:
+## Embedded SPA
 
+Serve a bundled SPA from embedded resources with automatic base path injection:
+
+```csharp
+app.MapEmbeddedSpa("/ui", Assembly.GetExecutingAssembly(), "Frontend/dist")
+   .RequireAuthorization();
 ```
-POST /GetUserRequest
+
+Add to your `.csproj`:
+
+```xml
+<EmbeddedResource Include="Frontend\dist\**\*" />
+<GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
 ```
 
----
-
-## Response behavior
-
-* `IRequest` → `204 No Content`
-* `IRequest<TResult>` → `200 OK`
-
----
+Place `__BASE_PATH__` in your `index.html` — replaced at runtime with the actual mount path. `rootPath` defaults to `"SPA/dist"`.
 
 ## Links
 
-* Source code: https://github.com/kododo-dev/Reiho
+- Source: https://github.com/kododo-dev/Reiho
