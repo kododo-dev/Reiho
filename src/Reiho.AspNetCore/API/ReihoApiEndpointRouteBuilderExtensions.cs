@@ -9,6 +9,12 @@ namespace Kododo.Reiho.AspNetCore.API;
 
 public static class ReihoApiEndpointRouteBuilderExtensions
 {
+    private static JsonSerializerOptions SerializerOptions => new(JsonSerializerDefaults.Web)
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true
+    };
+    
     extension(IEndpointRouteBuilder endpoints)
     {
         public IEndpointRouteBuilder MapRequests()
@@ -99,7 +105,7 @@ public static class ReihoApiEndpointRouteBuilderExtensions
                     ctx.Response.Body,
                     result,
                     result?.GetType() ?? typeof(object),
-                    options: null,
+                    options: SerializerOptions,
                     cancellationToken: ct
                 );
             });
@@ -122,7 +128,7 @@ public static class ReihoApiEndpointRouteBuilderExtensions
             {
                 try
                 {
-                    var request = await JsonSerializer.DeserializeAsync<TRequest>(ctx.Request.Body, cancellationToken: ct);
+                    var request = await JsonSerializer.DeserializeAsync<TRequest>(ctx.Request.Body, SerializerOptions, cancellationToken: ct);
                     return (request != null, request);
                 }
                 catch

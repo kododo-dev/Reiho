@@ -2,11 +2,7 @@ using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Kododo.Reiho.AspNetCore.API;
 using Xunit;
 
@@ -127,8 +123,7 @@ public sealed class RequestHandlingTests : IAsyncLifetime
 
         var body = await response.Content.ReadAsStringAsync();
         var doc = JsonDocument.Parse(body);
-        // System.Text.Json serialises with PascalCase property names by default
-        Assert.Equal("Hello, World!", doc.RootElement.GetProperty("Message").GetString());
+        Assert.Equal("Hello, World!", doc.RootElement.GetProperty("message").GetString());
     }
 
     [Fact]
