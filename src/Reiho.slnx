@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Reiho.AspNetCore\Reiho.AspNetCore.csproj" />
+  <Project Path="Reiho.AspNetCore.Tests\Reiho.AspNetCore.Tests.csproj" />
+</Solution>

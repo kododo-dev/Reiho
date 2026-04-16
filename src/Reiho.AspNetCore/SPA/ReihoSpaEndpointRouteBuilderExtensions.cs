@@ -41,10 +41,10 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
             endpoints.MapGet("/{**filePath}", async context =>
             {
                 var endpoint = context.GetEndpoint() as RouteEndpoint;
-                var fullPath = context.Request.Path.Value;
-                var routePattern = endpoint?.RoutePattern.RawText;
-                var groupPrefix = routePattern?.Replace("/{**filePath}", "");
-                var filePath = fullPath?[groupPrefix!.Length..];
+                var fullPath = context.Request.Path.Value ?? "";
+                var routePattern = endpoint?.RoutePattern.RawText ?? "";
+                var groupPrefix = routePattern.Replace("/{**filePath}", "");
+                var filePath = fullPath[groupPrefix.Length..];
 
                 bool isIndex;
 
@@ -64,7 +64,7 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
                         context.Response.Headers.CacheControl = ImmutableCacheControl;
 
                     context.Response.ContentType = cached.ContentType;
-                    await context.Response.Body.WriteAsync(cached.Data);
+                    await context.Response.Body.WriteAsync(cached.Data, context.RequestAborted);
                     return;
                 }
 
@@ -102,9 +102,13 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
                     contentType = detected;
                 }
 
-                fileCache[filePath] = new CachedFile(fileBytes, contentType);
+                // index.html is intentionally not cached: base path is computed
+                // per-request and the response carries Cache-Control: no-store.
+                if (!isIndex)
+                    fileCache[filePath] = new CachedFile(fileBytes, contentType);
+
                 context.Response.ContentType = contentType;
-                await context.Response.Body.WriteAsync(fileBytes);
+                await context.Response.Body.WriteAsync(fileBytes, context.RequestAborted);
             });
 
             return endpoints;

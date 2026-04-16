@@ -1,5 +1,7 @@
 # Reiho.AspNetCore
 
+[![CI](https://github.com/kododo-dev/Reiho/actions/workflows/ci.yml/badge.svg)](https://github.com/kododo-dev/Reiho/actions/workflows/ci.yml)
+
 Lightweight request/handler abstraction for ASP.NET Core Minimal APIs, plus a helper for serving embedded SPAs.
 
 ---
@@ -121,26 +123,26 @@ Place `__BASE_PATH__` somewhere in your `index.html` — it is replaced at runti
 
 ### Mount
 
+The mount path comes from `MapGroup`. `MapEmbeddedSpa` takes the assembly and an optional `rootPath`:
+
 ```csharp
-app.MapEmbeddedSpa(
-    path:     "/ui",
-    assembly: Assembly.GetExecutingAssembly(),
-    rootPath: "Frontend/dist");
+app.MapGroup("/ui").MapEmbeddedSpa(Assembly.GetExecutingAssembly(), "Frontend/dist");
 ```
 
-`rootPath` defaults to `"SPA/dist"` if not specified.
-
-Returns a `RouteGroupBuilder` — chain standard ASP.NET Core conventions directly:
+`rootPath` defaults to `"SPA/dist"` if not specified. To add ASP.NET Core conventions such as authorization, apply them on the group builder before calling `MapEmbeddedSpa`:
 
 ```csharp
-app.MapEmbeddedSpa("/ui", Assembly.GetExecutingAssembly(), "Frontend/dist")
-   .RequireAuthorization();
+app.MapGroup("/ui")
+   .RequireAuthorization()
+   .MapEmbeddedSpa(Assembly.GetExecutingAssembly(), "Frontend/dist");
 ```
 
 ### Custom base path placeholder
 
 ```csharp
-app.MapEmbeddedSpa("/ui", Assembly.GetExecutingAssembly(), "Frontend/dist",
+app.MapGroup("/ui").MapEmbeddedSpa(
+    Assembly.GetExecutingAssembly(),
+    rootPath: "Frontend/dist",
     basePathPlaceholder: "%%BASE%%");
 ```
 
@@ -166,8 +168,9 @@ var app = builder.Build();
 
 app.MapGroup("/api").MapRequests(typeof(Program).Assembly);
 
-app.MapEmbeddedSpa("/ui", Assembly.GetExecutingAssembly(), "Frontend/dist")
-   .RequireAuthorization();
+app.MapGroup("/ui")
+   .RequireAuthorization()
+   .MapEmbeddedSpa(Assembly.GetExecutingAssembly(), "Frontend/dist");
 
 app.Run();
 ```

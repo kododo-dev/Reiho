@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -93,7 +94,14 @@ public static class ReihoApiEndpointRouteBuilderExtensions
 
                 var handler = ctx.RequestServices.GetRequiredService<IRequestHandler<TRequest, TResult>>();
                 var result = await handler.HandleAsync(request!, ct);
-                await ctx.Response.WriteAsJsonAsync(result, cancellationToken: ct);
+                ctx.Response.ContentType = "application/json";
+                await JsonSerializer.SerializeAsync(
+                    ctx.Response.Body,
+                    result,
+                    result?.GetType() ?? typeof(object),
+                    options: null,
+                    cancellationToken: ct
+                );
             });
 
             return endpoints;
@@ -114,7 +122,7 @@ public static class ReihoApiEndpointRouteBuilderExtensions
             {
                 try
                 {
-                    var request = await ctx.Request.ReadFromJsonAsync<TRequest>(cancellationToken: ct);
+                    var request = await JsonSerializer.DeserializeAsync<TRequest>(ctx.Request.Body, cancellationToken: ct);
                     return (request != null, request);
                 }
                 catch
