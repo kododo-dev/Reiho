@@ -160,6 +160,38 @@ public sealed class RequestHandlingTests : IAsyncLifetime
         Assert.Equal("null", body);
     }
 
+    // ── Enum serialization ───────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Enum_in_result_is_serialized_as_string()
+    {
+        var json = new StringContent("""{"Color":"Green"}""", Encoding.UTF8, "application/json");
+        var response = await _client!.PostAsync("/GetColorRequest", json);
+
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(body);
+        Assert.Equal("Green", doc.RootElement.GetProperty("color").GetString());
+    }
+
+    [Fact]
+    public async Task Enum_in_result_is_not_serialized_as_number()
+    {
+        var json = new StringContent("""{"Color":"Blue"}""", Encoding.UTF8, "application/json");
+        var response = await _client!.PostAsync("/GetColorRequest", json);
+
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(body);
+        Assert.NotEqual(JsonValueKind.Number, doc.RootElement.GetProperty("color").ValueKind);
+    }
+
+    [Fact]
+    public async Task Enum_in_request_can_be_deserialized_from_string()
+    {
+        var json = new StringContent("""{"Color":"Red"}""", Encoding.UTF8, "application/json");
+        var response = await _client!.PostAsync("/GetColorRequest", json);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     // ── Endpoint discovery ───────────────────────────────────────────────────
 
     [Fact]

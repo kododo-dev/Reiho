@@ -52,3 +52,17 @@ public sealed class GetGreetingHandler : IRequestHandler<GetGreetingRequest, Gre
     public Task<GreetingResult> HandleAsync(GetGreetingRequest request, CancellationToken cancellationToken)
         => Task.FromResult(new GreetingResult($"Hello, {request.Name}!"));
 }
+
+// ── Enum serialization ────────────────────────────────────────────────────────
+
+public enum Color { Red, Green, Blue }
+
+public sealed record GetColorRequest(Color Color) : IRequest<ColorResult>;
+
+public sealed record ColorResult(Color Color);
+
+public sealed class GetColorHandler : IRequestHandler<GetColorRequest, ColorResult>
+{
+    public Task<ColorResult> HandleAsync(GetColorRequest request, CancellationToken cancellationToken)
+        => Task.FromResult(new ColorResult(request.Color));
+}

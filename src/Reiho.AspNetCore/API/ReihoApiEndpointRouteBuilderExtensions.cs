@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -12,7 +13,8 @@ public static class ReihoApiEndpointRouteBuilderExtensions
     private static JsonSerializerOptions SerializerOptions => new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true,
-        WriteIndented = true
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() }
     };
     
     extension(IEndpointRouteBuilder endpoints)
