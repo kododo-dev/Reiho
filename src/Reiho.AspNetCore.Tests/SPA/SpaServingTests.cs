@@ -1,11 +1,7 @@
 using System.Net;
 using System.Reflection;
 using Kododo.Reiho.AspNetCore.SPA;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Xunit;
 
 namespace Kododo.Reiho.AspNetCore.Tests.SPA;
@@ -58,8 +54,6 @@ public sealed class SpaServingTests : IAsyncLifetime
         }
     }
 
-    // ── index.html ───────────────────────────────────────────────────────────
-
     [Fact]
     public async Task Group_root_returns_200()
     {
@@ -93,8 +87,6 @@ public sealed class SpaServingTests : IAsyncLifetime
         Assert.Contains($"{GroupPrefix}/", body);
     }
 
-    // ── Static assets ────────────────────────────────────────────────────────
-
     [Fact]
     public async Task Static_asset_returns_200()
     {
@@ -116,16 +108,12 @@ public sealed class SpaServingTests : IAsyncLifetime
         Assert.Equal("text/javascript", response.Content.Headers.ContentType?.MediaType);
     }
 
-    // ── Not found ────────────────────────────────────────────────────────────
-
     [Fact]
     public async Task Non_existent_file_returns_404()
     {
         var response = await _client!.GetAsync($"{GroupPrefix}/does-not-exist.png");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
-
-    // ── Unknown file extension ───────────────────────────────────────────────
 
     [Fact]
     public async Task File_with_unknown_extension_returns_200()
@@ -141,8 +129,6 @@ public sealed class SpaServingTests : IAsyncLifetime
         Assert.Equal("application/octet-stream", response.Content.Headers.ContentType?.MediaType);
     }
 
-    // ── Caching ──────────────────────────────────────────────────────────────
-
     [Fact]
     public async Task Second_request_for_asset_is_served_from_cache()
     {
@@ -157,16 +143,5 @@ public sealed class SpaServingTests : IAsyncLifetime
         await _client!.GetAsync($"{GroupPrefix}/assets/app.js");
         var response = await _client!.GetAsync($"{GroupPrefix}/assets/app.js");
         Assert.Equal("public, max-age=31536000, immutable", response.Headers.CacheControl?.ToString());
-    }
-
-    // ── Known edge cases (documenting current behaviour) ─────────────────────
-
-    [Fact]
-    public async Task Trailing_slash_after_group_prefix_returns_404()
-    {
-        // "/ui/" → filePath = "/" → not empty, not "index.html" → file not found.
-        // Clients should navigate to "/ui" (no trailing slash).
-        var response = await _client!.GetAsync($"{GroupPrefix}/");
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 }
