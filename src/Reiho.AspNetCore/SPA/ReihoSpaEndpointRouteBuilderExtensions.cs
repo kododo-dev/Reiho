@@ -48,7 +48,7 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
 
                 bool isIndex;
 
-                if (string.IsNullOrEmpty(filePath))
+                if (string.IsNullOrEmpty(filePath) || filePath == "/")
                 {
                     filePath = IndexFileName;
                     isIndex = true;
