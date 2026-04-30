@@ -199,21 +199,12 @@ public sealed class SpaServingWithExplicitBasePathTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Index_html_contains_configured_base_path()
+    public async Task Index_html_contains_configured_base_path_and_context_path()
     {
         var response = await _client!.GetAsync(GroupPrefix);
         var body = await response.Content.ReadAsStringAsync();
 
         Assert.DoesNotContain("__BASE_PATH__", body);
-        Assert.Contains($"{ConfiguredBasePath}/", body);
-    }
-
-    [Fact]
-    public async Task Index_html_does_not_contain_auto_calculated_path()
-    {
-        var response = await _client!.GetAsync(GroupPrefix);
-        var body = await response.Content.ReadAsStringAsync();
-
-        Assert.DoesNotContain($"{GroupPrefix}/", body);
+        Assert.Contains($"{ConfiguredBasePath}{GroupPrefix}/", body);
     }
 }

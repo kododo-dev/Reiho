@@ -84,7 +84,8 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
 
                     using var reader = new StreamReader(stream);
                     var html = await reader.ReadToEndAsync();
-                    html = html.Replace(basePathPlaceholder, configuredBasePath is not null ? NormalizeBasePath(configuredBasePath) : CalculateBasePath(context));
+                    var contextPath = CalculateBasePath(context);
+                    html = html.Replace(basePathPlaceholder, configuredBasePath is not null ? NormalizeBasePath(configuredBasePath) + contextPath : contextPath);
                     fileBytes = System.Text.Encoding.UTF8.GetBytes(html);
                 }
                 else
@@ -116,7 +117,7 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
     private static string NormalizeBasePath(string basePath)
     {
         if (!basePath.StartsWith('/')) basePath = "/" + basePath;
-        if (!basePath.EndsWith('/'))   basePath += "/";
+        if (basePath.EndsWith('/'))   basePath = basePath[..^1];
         return basePath;
     }
 
