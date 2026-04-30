@@ -145,3 +145,75 @@ public sealed class SpaServingTests : IAsyncLifetime
         Assert.Equal("public, max-age=31536000, immutable", response.Headers.CacheControl?.ToString());
     }
 }
+
+public sealed class SpaServingWithExplicitBasePathTests : IAsyncLifetime
+{
+    private IHost? _host;
+    private HttpClient? _client;
+
+    private static readonly Assembly ThisAssembly = Assembly.GetExecutingAssembly();
+    private const string GroupPrefix = "/ui";
+    private const string ConfiguredBasePath = "/configway/demo";
+
+    public async Task InitializeAsync()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["PathBase"] = ConfiguredBasePath
+            })
+            .Build();
+
+        _host = await new HostBuilder()
+            .ConfigureWebHost(web =>
+            {
+                web.UseTestServer();
+                web.ConfigureServices(services =>
+                {
+                    services.AddRouting();
+                    services.AddSingleton<IConfiguration>(config);
+                });
+                web.Configure(app =>
+                {
+                    app.UseRouting();
+                    app.UseEndpoints(endpoints =>
+                    {
+                        endpoints.MapGroup(GroupPrefix)
+                                 .MapEmbeddedSpa(ThisAssembly, rootPath: "SPA/TestSpa");
+                    });
+                });
+            })
+            .StartAsync();
+
+        _client = _host.GetTestClient();
+    }
+
+    public async Task DisposeAsync()
+    {
+        _client?.Dispose();
+        if (_host is not null)
+        {
+            await _host.StopAsync();
+            _host.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Index_html_contains_configured_base_path()
+    {
+        var response = await _client!.GetAsync(GroupPrefix);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.DoesNotContain("__BASE_PATH__", body);
+        Assert.Contains($"{ConfiguredBasePath}/", body);
+    }
+
+    [Fact]
+    public async Task Index_html_does_not_contain_auto_calculated_path()
+    {
+        var response = await _client!.GetAsync(GroupPrefix);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.DoesNotContain($"{GroupPrefix}/", body);
+    }
+}

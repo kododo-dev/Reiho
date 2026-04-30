@@ -7,11 +7,6 @@ public static class ReihoApiServiceCollectionExtensions
 {
     extension(IServiceCollection services)
     {
-        public IServiceCollection AddRequestHandlers()
-        {
-            return services.AddRequestHandlers(Assembly.GetCallingAssembly());
-        }
-
         public IServiceCollection AddRequestHandlers(Assembly assembly)
         {
             assembly.GetTypes()

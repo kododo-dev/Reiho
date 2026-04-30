@@ -123,7 +123,7 @@ Place `__BASE_PATH__` somewhere in your `index.html` — it is replaced at runti
 
 ### Mount
 
-The mount path comes from `MapGroup`. `MapEmbeddedSpa` takes the assembly and an optional `rootPath`:
+The mount path comes from `MapGroup`. `MapEmbeddedSpa` requires an assembly and accepts an optional `rootPath`:
 
 ```csharp
 app.MapGroup("/ui").MapEmbeddedSpa(Assembly.GetExecutingAssembly(), "Frontend/dist");
@@ -135,6 +135,29 @@ app.MapGroup("/ui").MapEmbeddedSpa(Assembly.GetExecutingAssembly(), "Frontend/di
 app.MapGroup("/ui")
    .RequireAuthorization()
    .MapEmbeddedSpa(Assembly.GetExecutingAssembly(), "Frontend/dist");
+```
+
+### Base path behind a reverse proxy
+
+By default the base path is calculated from the incoming request. This breaks when the application runs behind a reverse proxy that strips a path prefix before forwarding — for example Caddy's `handle_path`.
+
+Set the `ASPNETCORE_PATHBASE` environment variable to override the auto-calculated value:
+
+```
+ASPNETCORE_PATHBASE=/configway/demo/ui
+```
+
+The value must combine the prefix stripped by the proxy **and** the `MapGroup` path, so that asset URLs resolve correctly for the browser. With the example above and `MapGroup("/ui")`:
+
+- public URL: `https://example.com/configway/demo/ui/`
+- Caddy strips `/configway/demo`, passes `/ui/…` to the backend
+- `ASPNETCORE_PATHBASE=/configway/demo/ui` → `<base href="/configway/demo/ui/">`
+- browser resolves `assets/app.js` → `/configway/demo/ui/assets/app.js` → Caddy strips prefix → `/ui/assets/app.js` ✓
+
+To apply the same value to ASP.NET Core's own routing and link generation, add this to `Program.cs`:
+
+```csharp
+app.UsePathBase(app.Configuration["PathBase"] ?? "");
 ```
 
 ### Custom base path placeholder

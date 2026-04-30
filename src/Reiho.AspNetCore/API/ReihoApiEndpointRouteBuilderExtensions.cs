@@ -19,11 +19,6 @@ public static class ReihoApiEndpointRouteBuilderExtensions
     
     extension(IEndpointRouteBuilder endpoints)
     {
-        public IEndpointRouteBuilder MapRequests()
-        {
-            return endpoints.MapRequests(Assembly.GetCallingAssembly());
-        }
-
         public IEndpointRouteBuilder MapRequests(Assembly assembly)
         {
             // IRequest

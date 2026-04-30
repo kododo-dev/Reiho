@@ -42,8 +42,9 @@ Requests without a return value use `IRequest` / `IRequestHandler<T>` and return
 Serve a bundled SPA from embedded resources with automatic base path injection:
 
 ```csharp
-app.MapEmbeddedSpa("/ui", Assembly.GetExecutingAssembly(), "Frontend/dist")
-   .RequireAuthorization();
+app.MapGroup("/ui")
+   .RequireAuthorization()
+   .MapEmbeddedSpa(Assembly.GetExecutingAssembly(), "Frontend/dist");
 ```
 
 Add to your `.csproj`:
@@ -54,6 +55,14 @@ Add to your `.csproj`:
 ```
 
 Place `__BASE_PATH__` in your `index.html` — replaced at runtime with the actual mount path. `rootPath` defaults to `"SPA/dist"`.
+
+When running behind a reverse proxy that strips a path prefix (e.g. Caddy's `handle_path`), set `ASPNETCORE_PATHBASE` to override the auto-calculated base path:
+
+```
+ASPNETCORE_PATHBASE=/configway/demo/ui
+```
+
+The value must be the full public prefix as seen by the browser — the proxy's stripped prefix plus the `MapGroup` path.
 
 ## Links
 

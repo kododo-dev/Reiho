@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 
 namespace Kododo.Reiho.AspNetCore.SPA;
@@ -14,6 +16,7 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
     private const string DefaultBasePathPlaceholder = "__BASE_PATH__";
     private const string DefaultRootPath = "SPA/dist";
     private const string ImmutableCacheControl = "public, max-age=31536000, immutable";
+    private const string BasePathConfigKey = "PathBase";
     
     private static readonly ConcurrentDictionary<(Assembly, string), ConcurrentDictionary<string, CachedFile>>
         PathCache = new();
@@ -23,13 +26,6 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
     extension(IEndpointRouteBuilder endpoints)
     {
         public IEndpointRouteBuilder MapEmbeddedSpa(
-            string rootPath = DefaultRootPath,
-            string basePathPlaceholder = DefaultBasePathPlaceholder)
-        {
-            return endpoints.MapEmbeddedSpa(Assembly.GetCallingAssembly(), rootPath, basePathPlaceholder);
-        }
-
-        public IEndpointRouteBuilder MapEmbeddedSpa(
             Assembly assembly,
             string rootPath = DefaultRootPath,
             string basePathPlaceholder = DefaultBasePathPlaceholder)
@@ -37,6 +33,8 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
             var provider = new ManifestEmbeddedFileProvider(assembly, rootPath);
             var fileCache = PathCache.GetOrAdd((assembly, rootPath),
                 _ => new ConcurrentDictionary<string, CachedFile>());
+
+            var configuredBasePath = endpoints.ServiceProvider.GetService<IConfiguration>()?[BasePathConfigKey];
 
             endpoints.MapGet("/{**filePath}", async context =>
             {
@@ -86,7 +84,7 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
 
                     using var reader = new StreamReader(stream);
                     var html = await reader.ReadToEndAsync();
-                    html = html.Replace(basePathPlaceholder, CalculateBasePath(context));
+                    html = html.Replace(basePathPlaceholder, configuredBasePath is not null ? NormalizeBasePath(configuredBasePath) : CalculateBasePath(context));
                     fileBytes = System.Text.Encoding.UTF8.GetBytes(html);
                 }
                 else
@@ -113,6 +111,13 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
 
             return endpoints;
         }
+    }
+
+    private static string NormalizeBasePath(string basePath)
+    {
+        if (!basePath.StartsWith('/')) basePath = "/" + basePath;
+        if (!basePath.EndsWith('/'))   basePath += "/";
+        return basePath;
     }
 
     private static string CalculateBasePath(HttpContext context)
