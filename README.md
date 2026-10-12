@@ -111,9 +111,17 @@ Serves a single-page application bundled as embedded resources, with automatic b
 Add to your `.csproj`:
 
 ```xml
-<EmbeddedResource Include="Frontend\dist\**\*" />
-<GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+<PropertyGroup>
+  <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+</PropertyGroup>
+
+<ItemGroup>
+  <EmbeddedResource Include="Frontend\dist\**\*" />
+  <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.12" />
+</ItemGroup>
 ```
+
+`Microsoft.Extensions.FileProviders.Embedded` provides the build task that writes the manifest. Use a 10.x version on every target framework, net8.0 and net9.0 included. The .NET 10 SDK prunes 8.x and 9.x as part of the shared framework, which drops the task, so the manifest is missing and `MapEmbeddedSpa` fails at startup.
 
 Place `__BASE_PATH__` somewhere in your `index.html` — it is replaced at runtime with the actual mount path so the SPA router works correctly regardless of where it is mounted:
 
