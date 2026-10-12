@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -95,6 +95,19 @@ public sealed class RequestHandlingTests : IAsyncLifetime
         var badJson = new StringContent("not-json", Encoding.UTF8, "application/json");
         var response = await _client!.PostAsync("/DeleteItemRequest", badJson);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Void_request_with_chunked_body_returns_204()
+    {
+        // A non-seekable stream has no known length, so the body is sent without Content-Length.
+        var stream = new NonSeekableStream(Encoding.UTF8.GetBytes("""{"Id":42}"""));
+        var content = new StreamContent(stream);
+        content.Headers.ContentType = new("application/json");
+
+        var response = await _client!.PostAsync("/DeleteItemRequest", content);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     // ── IRequest<TResult> ────────────────────────────────────────────────────
@@ -199,5 +212,10 @@ public sealed class RequestHandlingTests : IAsyncLifetime
     {
         var response = await _client!.PostAsync("/NonExistentRequest", content: null);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    private sealed class NonSeekableStream(byte[] data) : MemoryStream(data)
+    {
+        public override bool CanSeek => false;
     }
 }

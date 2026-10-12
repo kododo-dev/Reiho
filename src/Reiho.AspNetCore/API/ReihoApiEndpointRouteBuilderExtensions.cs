@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,7 +11,8 @@ namespace Kododo.Reiho.AspNetCore.API;
 
 public static class ReihoApiEndpointRouteBuilderExtensions
 {
-    private static JsonSerializerOptions SerializerOptions => new(JsonSerializerDefaults.Web)
+    // One shared instance: System.Text.Json caches type metadata per options instance.
+    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true,
         WriteIndented = true,
@@ -114,7 +116,12 @@ public static class ReihoApiEndpointRouteBuilderExtensions
         {
             var hasParameterlessCtor = typeof(TRequest).GetConstructor(Type.EmptyTypes) != null;
 
-            if (ctx.Request.ContentLength is null or 0)
+            // A chunked body has no Content-Length, so ask the server whether there is a body at all.
+            var hasBody = ctx.Request.ContentLength is > 0
+                          || (ctx.Request.ContentLength is null
+                              && ctx.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody == true);
+
+            if (!hasBody)
             {
                 if (hasParameterlessCtor)
                     return (true, (TRequest)Activator.CreateInstance(typeof(TRequest))!);
@@ -128,7 +135,7 @@ public static class ReihoApiEndpointRouteBuilderExtensions
                     var request = await JsonSerializer.DeserializeAsync<TRequest>(ctx.Request.Body, SerializerOptions, cancellationToken: ct);
                     return (request != null, request);
                 }
-                catch
+                catch (JsonException)
                 {
                     return (false, default);
                 }
