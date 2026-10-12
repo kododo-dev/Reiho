@@ -54,20 +54,14 @@ public sealed class GetUserHandler : IRequestHandler<GetUser, UserDto>
 ### Register handlers
 
 ```csharp
-// Scans the calling assembly
-builder.Services.AddRequestHandlers();
-
-// Explicit assembly — recommended when calling from a library or if auto-detection fails
+// Scans the given assembly for handlers
 builder.Services.AddRequestHandlers(typeof(Program).Assembly);
 ```
 
 ### Map endpoints
 
 ```csharp
-// Maps all requests found in the calling assembly
-app.MapRequests();
-
-// Explicit assembly
+// Maps all requests found in the given assembly
 app.MapRequests(typeof(Program).Assembly);
 
 // With a base path — use MapGroup
@@ -185,7 +179,7 @@ Files are read once and cached in memory. Multiple SPAs mounted at different pat
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddRequestHandlers();
+builder.Services.AddRequestHandlers(typeof(Program).Assembly);
 
 var app = builder.Build();
 

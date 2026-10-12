@@ -22,7 +22,7 @@ public sealed class GetUserHandler : IRequestHandler<GetUser, UserDto>
 }
 
 // Register & map
-builder.Services.AddRequestHandlers();
+builder.Services.AddRequestHandlers(typeof(Program).Assembly);
 app.MapGroup("/api").MapRequests(typeof(Program).Assembly);
 // → POST /api/GetUser
 ```
