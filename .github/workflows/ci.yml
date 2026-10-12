@@ -17,8 +17,10 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.x
-          dotnet-quality: preview
+          dotnet-version: |
+            8.x
+            9.x
+            10.x
 
       - name: Restore library
         run: dotnet restore src/Reiho.AspNetCore/Reiho.AspNetCore.csproj
@@ -29,5 +31,5 @@ jobs:
       - name: Build library (all TFMs)
         run: dotnet build src/Reiho.AspNetCore/Reiho.AspNetCore.csproj --no-restore --configuration Release
 
-      - name: Test
+      - name: Test (all TFMs)
         run: dotnet test src/Reiho.AspNetCore.Tests/Reiho.AspNetCore.Tests.csproj --no-restore --configuration Release --logger "console;verbosity=normal"
