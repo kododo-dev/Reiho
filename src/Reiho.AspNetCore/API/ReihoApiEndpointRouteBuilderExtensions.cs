@@ -16,26 +16,32 @@ public static class ReihoApiEndpointRouteBuilderExtensions
 {
     extension(IEndpointRouteBuilder endpoints)
     {
-        public IEndpointRouteBuilder MapRequests(Assembly assembly)
+        /// <summary>
+        /// Maps each request type of <paramref name="assembly"/> to a <c>POST</c> endpoint named after it. The result
+        /// configures all of them, or one with <c>For&lt;TRequest&gt;()</c>.
+        /// </summary>
+        public RequestEndpoints MapRequests(Assembly assembly)
         {
             var map = typeof(ReihoApiEndpointRouteBuilderExtensions).GetMethods()
                 .First(m => m is { Name: "Map", IsGenericMethodDefinition: true } && m.GetGenericArguments().Length == 1);
             var mapResult = typeof(ReihoApiEndpointRouteBuilderExtensions).GetMethods()
                 .First(m => m is { Name: "Map", IsGenericMethodDefinition: true } && m.GetGenericArguments().Length == 2);
 
+            var mapped = new Dictionary<Type, RouteHandlerBuilder>();
             foreach (var (request, result) in RequestType.Find(assembly))
             {
                 var generic = result is null ? map.MakeGenericMethod(request) : mapResult.MakeGenericMethod(request, result);
-                generic.Invoke(null, [endpoints, null]);
+                mapped[request] = (RouteHandlerBuilder)generic.Invoke(null, [endpoints, null])!;
             }
 
-            return endpoints;
+            return new RequestEndpoints(mapped);
         }
 
-        public IEndpointRouteBuilder Map<TRequest>(string? path = null)
+        /// <summary>Maps <typeparamref name="TRequest"/> to a <c>POST</c> endpoint, at <paramref name="path"/> or named after it.</summary>
+        public RouteHandlerBuilder Map<TRequest>(string? path = null)
             where  TRequest : IRequest
         {
-            endpoints.MapPost(path ?? typeof(TRequest).Name, (HttpContext ctx, CancellationToken ct) =>
+            return endpoints.MapPost(path ?? typeof(TRequest).Name, (HttpContext ctx, CancellationToken ct) =>
                 HandleAsync<TRequest>(ctx, ct, async request =>
                 {
                     await RequestPipeline.InvokeAsync(Filtered(request!, ctx, ct), async () =>
@@ -49,14 +55,13 @@ public static class ReihoApiEndpointRouteBuilderExtensions
             .WithRequestAttributes<TRequest>()
             .Describe<TRequest>()
             .Produces(StatusCodes.Status204NoContent);
-
-            return endpoints;
         }
 
-        public IEndpointRouteBuilder Map<TRequest, TResult>(string? path = null)
+        /// <summary>Maps <typeparamref name="TRequest"/> to a <c>POST</c> endpoint, at <paramref name="path"/> or named after it.</summary>
+        public RouteHandlerBuilder Map<TRequest, TResult>(string? path = null)
             where TRequest : IRequest<TResult>
         {
-            endpoints.MapPost(path ?? typeof(TRequest).Name, (HttpContext ctx, CancellationToken ct) =>
+            return endpoints.MapPost(path ?? typeof(TRequest).Name, (HttpContext ctx, CancellationToken ct) =>
                 HandleAsync<TRequest>(ctx, ct, async request =>
                 {
                     var result = await RequestPipeline.InvokeAsync(Filtered(request!, ctx, ct), async () =>
@@ -79,8 +84,6 @@ public static class ReihoApiEndpointRouteBuilderExtensions
             .WithRequestAttributes<TRequest>()
             .Describe<TRequest>()
             .ProducesResult<TResult>();
-
-            return endpoints;
         }
 
         // Reads and validates the request, runs the handler, and answers errors the caller can act on with problem

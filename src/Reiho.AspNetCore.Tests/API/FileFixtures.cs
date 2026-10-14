@@ -42,3 +42,12 @@ public sealed class ExportGreetingsHandler : IRequestHandler<ExportGreetingsRequ
             ? FileResponse.FromText("name\nAda", "text/csv", "greetings.csv")
             : FileResponse.FromBytes([1, 2, 3]));
 }
+
+// ── A request without a result for tests that only need one; PingRequest's call count belongs to RequestHandlingTests.
+
+public sealed record NoopRequest : IRequest;
+
+public sealed class NoopHandler : IRequestHandler<NoopRequest>
+{
+    public Task HandleAsync(NoopRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+}
