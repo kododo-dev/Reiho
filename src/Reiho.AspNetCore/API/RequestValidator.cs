@@ -27,13 +27,14 @@ internal static class RequestValidator
     public static Dictionary<string, string[]>? Validate(object request)
     {
         var errors = new Dictionary<string, List<string>>();
-        Validate(request, "", errors, new HashSet<object>(ReferenceEqualityComparer.Instance), 0);
+        Validate(request, "", errors, visited: null, 0);
         return errors.Count == 0 ? null : errors.ToDictionary(e => e.Key, e => e.Value.ToArray());
     }
 
-    private static void Validate(object instance, string prefix, Dictionary<string, List<string>> errors, HashSet<object> visited, int depth)
+    // The set of objects already checked, against cycles, is only made once there is a nested object to check.
+    private static void Validate(object instance, string prefix, Dictionary<string, List<string>> errors, HashSet<object>? visited, int depth)
     {
-        if (depth > MaxDepth || !visited.Add(instance))
+        if (depth > MaxDepth || visited?.Add(instance) == false)
             return;
 
         void Add(string field, string? message)
@@ -68,13 +69,13 @@ internal static class RequestValidator
                 foreach (var item in items)
                 {
                     if (item is not null && IsNested(item.GetType()))
-                        Validate(item, $"{prefix}{member.Name}[{index}].", errors, visited, depth + 1);
+                        Validate(item, $"{prefix}{member.Name}[{index}].", errors, visited ??= Visited(instance), depth + 1);
                     index++;
                 }
             }
             else if (IsNested(value.GetType()))
             {
-                Validate(value, $"{prefix}{member.Name}.", errors, visited, depth + 1);
+                Validate(value, $"{prefix}{member.Name}.", errors, visited ??= Visited(instance), depth + 1);
             }
         }
 
@@ -91,6 +92,8 @@ internal static class RequestValidator
             }
         }
     }
+
+    private static HashSet<object> Visited(object root) => new(ReferenceEqualityComparer.Instance) { root };
 
     // An object of the app's own types, to check inside; not a value, text, framework type or uploaded file.
     private static bool IsNested(Type type) =>

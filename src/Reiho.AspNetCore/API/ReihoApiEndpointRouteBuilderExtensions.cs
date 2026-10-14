@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
@@ -93,12 +94,19 @@ public static class ReihoApiEndpointRouteBuilderExtensions
             var (request, problem) = await ReadRequestAsync<TRequest>(ctx, ct);
             if (problem is not null)
             {
+                ReihoTelemetry.LogRejected(ctx.RequestServices, typeof(TRequest), RequestTransport.Http, problem switch
+                {
+                    ValidationProblem validation => "not valid: " + string.Join(", ", validation.ProblemDetails.Errors.Keys),
+                    ProblemHttpResult other => other.ProblemDetails.Detail ?? "the body is not valid",
+                    _ => "the body is not valid",
+                });
                 await problem.ExecuteAsync(ctx);
                 return;
             }
 
             if (RequestValidator.Validate(request!) is { } errors)
             {
+                ReihoTelemetry.LogInvalid(ctx.RequestServices, typeof(TRequest), RequestTransport.Http, errors);
                 await TypedResults.ValidationProblem(errors).ExecuteAsync(ctx);
                 return;
             }
@@ -118,8 +126,6 @@ public static class ReihoApiEndpointRouteBuilderExtensions
 
         private static async Task<(TRequest? Request, IResult? Problem)> ReadRequestAsync<TRequest>(HttpContext ctx, CancellationToken ct)
         {
-            var hasParameterlessCtor = typeof(TRequest).GetConstructor(Type.EmptyTypes) != null;
-
             // A chunked body has no Content-Length, so ask the server whether there is a body at all.
             var hasBody = ctx.Request.ContentLength is > 0
                           || (ctx.Request.ContentLength is null
@@ -127,14 +133,14 @@ public static class ReihoApiEndpointRouteBuilderExtensions
 
             if (!hasBody)
             {
-                return hasParameterlessCtor
+                return RequestInfo<TRequest>.HasParameterlessConstructor
                     ? ((TRequest)Activator.CreateInstance(typeof(TRequest))!, null)
                     : (default, BodyRequired());
             }
 
             // Only a request that receives files takes a form: a form needs no CORS preflight, so it is open to
             // cross-site posts, which the endpoint's antiforgery metadata guards against.
-            if (RequestFiles.Of(typeof(TRequest)).Length > 0)
+            if (RequestInfo<TRequest>.ReceivesFiles)
             {
                 // The antiforgery middleware only records its verdict, and the form refuses to be read after a failed
                 // one; as for minimal APIs, the endpoint turns the post away.
@@ -223,6 +229,8 @@ public static class ReihoApiEndpointRouteBuilderExtensions
     // Minimal APIs require an antiforgery token for form posts; so does a request that receives files, unless it says
     // otherwise with [RequireAntiforgeryToken(false)], which, as a request attribute added later, takes precedence.
     private static RouteHandlerBuilder WithFileMetadata<TRequest>(this RouteHandlerBuilder builder) =>
+        // RequestFiles itself rather than RequestInfo: a file property it cannot set fails here, at startup, with its own
+        // message instead of a TypeInitializationException.
         RequestFiles.Of(typeof(TRequest)).Length > 0 ? builder.WithMetadata(new RequireAntiforgeryTokenAttribute()) : builder;
 
     private static RouteHandlerBuilder ProducesResult<TResult>(this RouteHandlerBuilder builder) =>
@@ -233,9 +241,9 @@ public static class ReihoApiEndpointRouteBuilderExtensions
     // The handler reads the body itself, so tell ApiExplorer and OpenAPI what the endpoint takes and returns.
     private static RouteHandlerBuilder Describe<TRequest>(this RouteHandlerBuilder builder)
     {
-        var form = RequestFiles.Of(typeof(TRequest)).Length > 0;
+        var form = RequestInfo<TRequest>.ReceivesFiles;
         builder
-            .Accepts(typeof(TRequest), isOptional: typeof(TRequest).GetConstructor(Type.EmptyTypes) != null,
+            .Accepts(typeof(TRequest), isOptional: RequestInfo<TRequest>.HasParameterlessConstructor,
                 form ? "multipart/form-data" : "application/json")
             .ProducesValidationProblem();
         if (typeof(TRequest).GetCustomAttribute<DescriptionAttribute>()?.Description is { } description)
@@ -289,4 +297,12 @@ public static class ReihoApiEndpointRouteBuilderExtensions
     // they would on a controller action; inherited ones too, so a base request can carry them for all derived requests.
     private static RouteHandlerBuilder WithRequestAttributes<TRequest>(this RouteHandlerBuilder builder) =>
         builder.WithMetadata(typeof(TRequest).GetCustomAttributes(inherit: true));
+
+    // What each request needs to know of its type, looked up once rather than on every call.
+    private static class RequestInfo<TRequest>
+    {
+        public static readonly bool HasParameterlessConstructor = typeof(TRequest).GetConstructor(Type.EmptyTypes) != null;
+
+        public static readonly bool ReceivesFiles = RequestFiles.Of(typeof(TRequest)).Length > 0;
+    }
 }

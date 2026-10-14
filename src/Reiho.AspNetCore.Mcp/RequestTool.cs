@@ -59,17 +59,21 @@ internal abstract class RequestTool : McpServerTool
         }
         catch (JsonException e)
         {
+            if (request.Services is { } scope)
+                ReihoTelemetry.LogRejected(scope, RequestType, RequestTransport.Mcp, "the arguments do not fit the input schema");
             return Error($"The arguments do not fit the input schema: {e.Message}");
         }
         if (parsed is null)
             return Error("The arguments are missing.");
 
         // The same checks and errors as over HTTP, as text the agent can act on.
-        if (RequestValidator.Validate(parsed) is { } errors)
-            return Error(Invalid(errors));
-
         var services = request.Services
             ?? throw new InvalidOperationException("The MCP request has no service provider to resolve the handler from.");
+        if (RequestValidator.Validate(parsed) is { } errors)
+        {
+            ReihoTelemetry.LogInvalid(services, RequestType, RequestTransport.Mcp, errors);
+            return Error(Invalid(errors));
+        }
         try
         {
             var context = new RequestFilterContext(parsed, RequestTransport.Mcp, services, null, cancellationToken);

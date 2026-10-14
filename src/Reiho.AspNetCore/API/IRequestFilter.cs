@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -76,12 +77,38 @@ public static class ReihoRequestFilterServiceCollectionExtensions
     }
 }
 
-/// <summary>Runs the registered filters around a handler.</summary>
+/// <summary>Runs the registered filters around a handler, traced and logged.</summary>
 internal static class RequestPipeline
 {
-    public static ValueTask<object?> InvokeAsync(RequestFilterContext context, Func<ValueTask<object?>> handler)
+    public static async ValueTask<object?> InvokeAsync(RequestFilterContext context, Func<ValueTask<object?>> handler)
     {
-        var filters = context.Services.GetServices<IRequestFilter>().ToArray();
+        var name = context.Request.GetType().Name;
+        Activity.Current?.SetTag("reiho.request", name);
+        using var activity = ReihoTelemetry.Source.StartActivity(name);
+        activity?.SetTag("reiho.request", name);
+        activity?.SetTag("reiho.transport", context.Transport == RequestTransport.Http ? "http" : "mcp");
+        try
+        {
+            return await Chain(context, handler);
+        }
+        catch (RequestException e)
+        {
+            // An answer to the caller, not a failure of the app.
+            activity?.SetTag("reiho.status_code", e.StatusCode);
+            ReihoTelemetry.LogEnded(context.Services, context.Request.GetType(), context.Transport, e);
+            throw;
+        }
+        catch (Exception e)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, e.Message);
+            throw;
+        }
+    }
+
+    private static ValueTask<object?> Chain(RequestFilterContext context, Func<ValueTask<object?>> handler)
+    {
+        var services = context.Services.GetServices<IRequestFilter>();
+        var filters = services as IRequestFilter[] ?? services.ToArray();
         if (filters.Length == 0)
             return handler();
 
