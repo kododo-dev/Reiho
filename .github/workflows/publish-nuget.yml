@@ -27,17 +27,21 @@ jobs:
 
       - name: Build
         run: |
-          dotnet build src/Reiho.AspNetCore/Reiho.AspNetCore.csproj \
-            --configuration Release \
-            -p:Version=${{ steps.version.outputs.VERSION }}
+          for project in Reiho.AspNetCore Reiho.AspNetCore.Mcp; do
+            dotnet build src/$project/$project.csproj \
+              --configuration Release \
+              -p:Version=${{ steps.version.outputs.VERSION }}
+          done
 
       - name: Pack
         run: |
-          dotnet pack src/Reiho.AspNetCore/Reiho.AspNetCore.csproj \
-            --configuration Release \
-            --no-build \
-            -p:Version=${{ steps.version.outputs.VERSION }} \
-            --output ./nupkgs
+          for project in Reiho.AspNetCore Reiho.AspNetCore.Mcp; do
+            dotnet pack src/$project/$project.csproj \
+              --configuration Release \
+              --no-build \
+              -p:Version=${{ steps.version.outputs.VERSION }} \
+              --output ./nupkgs
+          done
 
       - name: Push to NuGet
         run: |

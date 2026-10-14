@@ -182,6 +182,44 @@ Files are read once and cached in memory. Multiple SPAs mounted at different pat
 
 ---
 
+## MCP tools (preview)
+
+`Kododo.Reiho.AspNetCore.Mcp` offers requests as tools to AI agents over the [Model Context Protocol](https://modelcontextprotocol.io), next to their HTTP endpoints, with the official MCP C# SDK.
+
+```bash
+dotnet add package Kododo.Reiho.AspNetCore.Mcp
+```
+
+Mark the requests to offer with `[McpTool]` and describe them; agents choose and call tools from these descriptions:
+
+```csharp
+[McpTool(ReadOnly = true), Description("Finds the orders of a customer, newest first.")]
+public sealed record FindOrders([property: Description("Customer id, e.g. c-63")] string CustomerId) : IRequest<Order[]>;
+```
+
+```csharp
+builder.Services.AddRequestHandlers(typeof(Program).Assembly);
+builder.Services.AddMcpServer()
+    .WithHttpTransport()
+    .WithRequests(typeof(Program).Assembly);
+
+app.MapMcp("/mcp").RequireAuthorization();
+```
+
+| | |
+|---|---|
+| Tool name | the request's name in snake case (`find_orders`), or `[McpTool(Name = ...)]`; `o.Prefix` puts a prefix before every name |
+| Input schema | the request's properties, with their `[Description]` |
+| Result | the handler's result as JSON; `Done.` for an `IRequest` |
+| Invalid arguments | an error result the agent can read and correct |
+| Hints | `ReadOnly`, `Destructive`, `Idempotent`, `OpenWorld` on `[McpTool]` |
+
+Requests without `[McpTool]` are not offered. A library that cannot reference the attribute's version of Reiho includes its requests with `o.Include<TRequest>(new McpToolAttribute { ReadOnly = true })`.
+
+A tool call does not go through the request's HTTP endpoint, so endpoint filters and the endpoint's authorization do not apply: protect the MCP endpoint itself. `[Authorize]` on a request is honoured per tool after `AddAuthorizationFilters()`. On net8.0 and net9.0 the MCP SDK brings the 10.x `Microsoft.Extensions.*` packages; align the app's own `Microsoft.Extensions.Logging` with them if it references an older one.
+
+---
+
 ## Full example
 
 ```csharp
