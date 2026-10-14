@@ -68,6 +68,16 @@ app.MapRequests(typeof(Program).Assembly);
 app.MapGroup("/api").MapRequests(typeof(Program).Assembly);
 ```
 
+`MapRequests` returns the mapped endpoints: conventions on it apply to all of them, and `For<TRequest>()` configures one. `Map<TRequest>()` maps a single request and returns its endpoint:
+
+```csharp
+var requests = app.MapGroup("/api").MapRequests(typeof(Program).Assembly);
+requests.WithTags("Orders");
+requests.For<ExportOrders>().CacheOutput();
+
+app.Map<Ping>("/ping").AllowAnonymous();
+```
+
 ---
 
 ## Conventions

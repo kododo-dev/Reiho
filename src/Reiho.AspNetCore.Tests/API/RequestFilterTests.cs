@@ -95,10 +95,10 @@ public sealed class RequestFilterTests : IAsyncLifetime
     [Fact]
     public async Task Filter_runs_for_a_request_without_result()
     {
-        var response = await _client!.PostAsync("/PingRequest", content: null);
+        var response = await _client!.PostAsync("/NoopRequest", content: null);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.Contains("outer:PingRequest:Http:True", Log);
+        Assert.Contains("outer:NoopRequest:Http:True", Log);
     }
 
     [Fact]

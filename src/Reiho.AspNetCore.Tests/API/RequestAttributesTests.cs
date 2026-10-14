@@ -83,13 +83,13 @@ public sealed class RequestAttributesTests : IAsyncLifetime
     public async Task AllowAnonymous_on_the_request_opens_it_in_a_protected_group()
     {
         Assert.Equal(HttpStatusCode.OK, (await Post("/closed/GetPublicRequest", signedIn: false)).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await Post("/closed/PingRequest", signedIn: false)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Post("/closed/NoopRequest", signedIn: false)).StatusCode);
     }
 
     [Fact]
     public async Task Requests_without_attributes_are_unchanged()
     {
-        Assert.Equal(HttpStatusCode.NoContent, (await Post("/open/PingRequest", signedIn: false)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await Post("/open/NoopRequest", signedIn: false)).StatusCode);
     }
 }
 
