@@ -38,7 +38,9 @@ internal static class RequestFiles
         {
             if (files.Any(f => Matches(f.Property, key)))
                 continue;
-            var type = properties.FirstOrDefault(p => Matches(p, key))?.PropertyType ?? typeof(string);
+            // Forms carry fields of their own, e.g. the antiforgery token, so a field the request lacks is left out.
+            if (properties.FirstOrDefault(p => Matches(p, key)) is not { PropertyType: var type })
+                continue;
             var item = type != typeof(string) && type.IsGenericType && type.GetGenericArguments() is [var argument] ? argument : type;
             json[key] = values.Count == 1
                 ? Value(values[0] ?? "", type)
@@ -57,7 +59,8 @@ internal static class RequestFiles
     }
 
     private static bool Matches(PropertyInfo property, string name) =>
-        string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase);
+        string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(RequestValidator.JsonName(property), name, StringComparison.OrdinalIgnoreCase);
 
     // A field is text; it is a JSON number, boolean or object when the property is not text-like and it parses as one.
     private static JsonNode? Value(string text, Type type)

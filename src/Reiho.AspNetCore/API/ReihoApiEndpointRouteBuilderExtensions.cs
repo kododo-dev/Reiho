@@ -151,7 +151,7 @@ public static class ReihoApiEndpointRouteBuilderExtensions
             }
             catch (Exception e) when (e is JsonException or NotSupportedException)
             {
-                return (default, InvalidBody(e));
+                return (default, InvalidBody(typeof(TRequest), e));
             }
         }
 
@@ -174,7 +174,7 @@ public static class ReihoApiEndpointRouteBuilderExtensions
             }
             catch (Exception e) when (e is JsonException or NotSupportedException)
             {
-                return (default, InvalidBody(e));
+                return (default, InvalidBody(typeof(TRequest), e));
             }
             if (request is null)
                 return (default, BodyRequired());
@@ -192,12 +192,33 @@ public static class ReihoApiEndpointRouteBuilderExtensions
     private static IResult BodyRequired() =>
         TypedResults.Problem(detail: "A JSON body is required for this request.", statusCode: StatusCodes.Status400BadRequest);
 
-    // The path names the field when the JSON is well formed but a value does not fit; the message is not returned, as
-    // it names .NET types.
-    private static IResult InvalidBody(Exception e) =>
+    // The path names the field when the JSON is well formed but a value does not fit, or the request has no such field;
+    // the message is not returned, as it names .NET types.
+    private static IResult InvalidBody(Type requestType, Exception e) =>
         e is JsonException { Path: { Length: > 2 } path } && path.StartsWith("$.")
-            ? TypedResults.ValidationProblem(new Dictionary<string, string[]> { [path[2..]] = ["The value is not valid."] })
+            ? TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                [path[2..]] = [HasField(requestType, path[2..]) ? "The value is not valid." : "The request has no such field."],
+            })
             : TypedResults.Problem(detail: "The request body is not valid JSON for this request.", statusCode: StatusCodes.Status400BadRequest);
+
+    // Follows a JSON path such as "lines[1].product" through the request's properties, and collections' items.
+    private static bool HasField(Type type, string path)
+    {
+        foreach (var segment in path.Split('.'))
+        {
+            var name = segment.Split('[')[0];
+            var property = type.GetProperties().FirstOrDefault(p =>
+                string.Equals(RequestValidator.JsonName(p), name, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (property is null)
+                return false;
+            type = property.PropertyType;
+            if (segment.Contains('['))
+                type = type.IsArray ? type.GetElementType()! : type.GetGenericArguments().LastOrDefault() ?? typeof(object);
+        }
+        return true;
+    }
 
     // Minimal APIs require an antiforgery token for form posts; so does a request that receives files, unless it says
     // otherwise with [RequireAntiforgeryToken(false)], which, as a request attribute added later, takes precedence.

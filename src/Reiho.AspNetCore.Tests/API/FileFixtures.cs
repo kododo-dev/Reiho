@@ -51,3 +51,24 @@ public sealed class NoopHandler : IRequestHandler<NoopRequest>
 {
     public Task HandleAsync(NoopRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
 }
+
+// ── Nested validation, non-nullable references ───────────────────────────────
+
+public sealed record PlaceOrderRequest(string Customer, OrderAddress Address, IReadOnlyList<OrderLine> Lines, string? Note = null)
+    : IRequest<int>;
+
+public sealed record OrderAddress([Required] string? Street, string City);
+
+public sealed record OrderLine([Range(1, 100)] int Quantity, string Product) : IValidatableObject
+{
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (Product == "gift" && Quantity > 1)
+            yield return new ValidationResult("Only one gift per order.", [nameof(Quantity)]);
+    }
+}
+
+public sealed class PlaceOrderHandler : IRequestHandler<PlaceOrderRequest, int>
+{
+    public Task<int> HandleAsync(PlaceOrderRequest request, CancellationToken cancellationToken) => Task.FromResult(request.Lines.Count);
+}

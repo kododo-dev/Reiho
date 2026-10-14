@@ -31,7 +31,7 @@ Requests without a return value use `IRequest` / `IRequestHandler<T>` and return
 
 ## Validation and errors
 
-Data annotations on the request, also on positional record parameters, are checked before the handler runs; a request that fails gets `400` with the errors per field as problem details (RFC 9457). A handler ends a request with an error the caller can act on by throwing `RequestException`:
+Data annotations on the request, also on positional record parameters and in nested objects, are checked before the handler runs, and so are non-nullable references and unknown fields; a request that fails gets `400` with the errors per field as problem details (RFC 9457). A handler ends a request with an error the caller can act on by throwing `RequestException`:
 
 ```csharp
 public sealed record CreateUser([Required, StringLength(50)] string Name) : IRequest<UserDto>;
