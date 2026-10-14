@@ -1,4 +1,5 @@
-﻿using Kododo.Reiho.AspNetCore.API;
+﻿using System.ComponentModel;
+using Kododo.Reiho.AspNetCore.API;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Kododo.Reiho.AspNetCore.Tests.API;
@@ -44,6 +45,7 @@ public sealed class GetNullHandler : IRequestHandler<GetNullRequest, GreetingRes
 
 // ── Result request ────────────────────────────────────────────────────────────
 
+[Description("Greets a person by name.")]
 public sealed record GetGreetingRequest(string Name) : IRequest<GreetingResult>;
 
 public sealed record GreetingResult(string Message);

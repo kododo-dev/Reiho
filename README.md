@@ -108,6 +108,38 @@ This works for any endpoint metadata attribute, e.g. `[EnableRateLimiting]` or `
 
 ---
 
+## OpenAPI
+
+Endpoints describe themselves for ApiExplorer, so `Microsoft.AspNetCore.OpenApi`, Swashbuckle and Scalar document them without extra setup:
+
+| | |
+|---|---|
+| Operation id | the full route (`/api/GetUser` → `Api_GetUser`) |
+| Summary | the request's `[Description]` |
+| Request body | the request as JSON; optional when it has a parameterless constructor |
+| Responses | `200` with the result type, or `204` for an `IRequest`; `400` as plain text |
+
+```csharp
+[Description("Finds the orders of a customer, newest first.")]
+public sealed record FindOrders([property: Description("Customer id, e.g. c-63")] string CustomerId) : IRequest<Order[]>;
+```
+
+```csharp
+builder.Services.AddOpenApi();
+app.MapOpenApi();
+app.MapRequests(typeof(Program).Assembly);
+```
+
+Each endpoint is named after its full route, group prefix included (`/api/admin/GetUser` → `Api_Admin_GetUser`), which becomes the operation id that client generators (NSwag, Kiota, openapi-generator) build method names from. A route is unique, so requests of the same name mapped in different groups, e.g. by two libraries, do not clash.
+
+Reiho writes enums as strings. The document's schemas follow the app's own JSON options, so add the same converter there to document them as strings:
+
+```csharp
+builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+```
+
+---
+
 ## Embedded SPA
 
 Serves a single-page application bundled as embedded resources, with automatic base path injection and aggressive caching for static assets.
