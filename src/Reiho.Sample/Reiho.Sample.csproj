@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- A runnable tour of Reiho; see README.md next to this file. Not packed. -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Reiho.AspNetCore\Reiho.AspNetCore.csproj" />
+    <ProjectReference Include="..\Reiho.AspNetCore.Mcp\Reiho.AspNetCore.Mcp.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
+  </ItemGroup>
+
+</Project>

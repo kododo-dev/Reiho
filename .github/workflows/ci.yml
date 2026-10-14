@@ -31,5 +31,8 @@ jobs:
       - name: Build library (all TFMs)
         run: dotnet build src/Reiho.AspNetCore/Reiho.AspNetCore.csproj --no-restore --configuration Release
 
+      - name: Build sample
+        run: dotnet build src/Reiho.Sample/Reiho.Sample.csproj --configuration Release
+
       - name: Test (all TFMs)
         run: dotnet test src/Reiho.AspNetCore.Tests/Reiho.AspNetCore.Tests.csproj --no-restore --configuration Release --logger "console;verbosity=normal"
