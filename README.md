@@ -85,7 +85,8 @@ POST /DeleteUser
 |---|---|
 | Body present | Deserialized from JSON |
 | No body, parameterless constructor exists | Empty instance created |
-| No body, no parameterless constructor | `400 Bad Request` |
+| No body, no parameterless constructor | `400 Bad Request`, problem details |
+| Body that is not valid JSON for the request | `400 Bad Request`, problem details; a value of the wrong type is named in `errors` |
 
 **Response:**
 
@@ -93,6 +94,43 @@ POST /DeleteUser
 |---|---|---|
 | `IRequest` | `204 No Content` | — |
 | `IRequest<TResult>` | `200 OK` | JSON |
+| invalid request, `RequestException` | `4xx` | problem details (`application/problem+json`) |
+
+---
+
+## Validation and errors
+
+Data annotations on the request are checked before its handler runs, also on the parameters of a positional record; `IValidatableObject` runs once they pass. A request that fails gets `400` with the messages per field, under the fields' JSON names:
+
+```csharp
+public sealed record CreateUser([Required, StringLength(50)] string Name, [Range(18, 120)] int Age) : IRequest<UserDto>;
+```
+
+```json
+{ "title": "One or more validation errors occurred.", "status": 400,
+  "errors": { "name": ["The name field is required."], "age": ["The field age must be between 18 and 120."] } }
+```
+
+Only the request's own properties are checked, not nested objects.
+
+A handler ends a request with an error the caller can act on by throwing `RequestException`:
+
+```csharp
+var user = await users.FindAsync(request.Id, ct)
+    ?? throw RequestException.NotFound($"User {request.Id} does not exist.");    // 404
+if (await users.NameTakenAsync(request.Name, ct))
+    throw RequestException.Invalid(nameof(request.Name), "The name is taken.");  // 400, errors.name
+```
+
+| | Status |
+|---|---|
+| `new RequestException(message)` | `400`, or the status passed |
+| `RequestException.Invalid(field, message)` | `400` with `errors` |
+| `RequestException.NotFound(message)` | `404` |
+| `RequestException.Forbidden(message)` | `403` |
+| `RequestException.Conflict(message)` | `409` |
+
+The message becomes the problem's `detail`, so write it for the caller. Other exceptions are left to the application, e.g. its `UseExceptionHandler()`. With `AddProblemDetails()`, Reiho writes its problems through the app's `IProblemDetailsService`, so `CustomizeProblemDetails` applies to them too.
 
 ---
 

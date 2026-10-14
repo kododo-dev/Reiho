@@ -66,20 +66,13 @@ public static class ReihoApiEndpointRouteBuilderExtensions
         public IEndpointRouteBuilder Map<TRequest>(string? path = null)
             where  TRequest : IRequest
         {
-            endpoints.MapPost(path ?? typeof(TRequest).Name, async (HttpContext ctx, CancellationToken ct) =>
-            {
-                var (success, request) = await TryCreateRequest<TRequest>(ctx, ct);
-                if (!success)
+            endpoints.MapPost(path ?? typeof(TRequest).Name, (HttpContext ctx, CancellationToken ct) =>
+                HandleAsync<TRequest>(ctx, ct, async request =>
                 {
-                    ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
-                    await ctx.Response.WriteAsync("Request body is required or invalid for this request type.", ct);
-                    return;
-                }
-
-                var handler = ctx.RequestServices.GetRequiredService<IRequestHandler<TRequest>>();
-                await handler.HandleAsync(request!, ct);
-                ctx.Response.StatusCode = StatusCodes.Status204NoContent;
-            });
+                    var handler = ctx.RequestServices.GetRequiredService<IRequestHandler<TRequest>>();
+                    await handler.HandleAsync(request, ct);
+                    ctx.Response.StatusCode = StatusCodes.Status204NoContent;
+                }));
 
             return endpoints;
         }
@@ -87,32 +80,55 @@ public static class ReihoApiEndpointRouteBuilderExtensions
         public IEndpointRouteBuilder Map<TRequest, TResult>(string? path = null)
             where TRequest : IRequest<TResult>
         {
-            endpoints.MapPost(path ?? typeof(TRequest).Name, async (HttpContext ctx, CancellationToken ct) =>
-            {
-                var (success, request) = await TryCreateRequest<TRequest>(ctx, ct);
-                if (!success)
+            endpoints.MapPost(path ?? typeof(TRequest).Name, (HttpContext ctx, CancellationToken ct) =>
+                HandleAsync<TRequest>(ctx, ct, async request =>
                 {
-                    ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
-                    await ctx.Response.WriteAsync("Request body is required or invalid for this request type.", ct);
-                    return;
-                }
-
-                var handler = ctx.RequestServices.GetRequiredService<IRequestHandler<TRequest, TResult>>();
-                var result = await handler.HandleAsync(request!, ct);
-                ctx.Response.ContentType = "application/json";
-                await JsonSerializer.SerializeAsync(
-                    ctx.Response.Body,
-                    result,
-                    result?.GetType() ?? typeof(object),
-                    options: SerializerOptions,
-                    cancellationToken: ct
-                );
-            });
+                    var handler = ctx.RequestServices.GetRequiredService<IRequestHandler<TRequest, TResult>>();
+                    var result = await handler.HandleAsync(request, ct);
+                    ctx.Response.ContentType = "application/json";
+                    await JsonSerializer.SerializeAsync(
+                        ctx.Response.Body,
+                        result,
+                        result?.GetType() ?? typeof(object),
+                        options: SerializerOptions,
+                        cancellationToken: ct
+                    );
+                }));
 
             return endpoints;
         }
 
-        private static async Task<(bool Success, TRequest? Request)> TryCreateRequest<TRequest>(HttpContext ctx, CancellationToken ct)
+        // Reads and validates the request, runs the handler, and answers errors the caller can act on with problem
+        // details; through IProblemDetailsService when the app has AddProblemDetails().
+        private static async Task HandleAsync<TRequest>(HttpContext ctx, CancellationToken ct, Func<TRequest, Task> handle)
+        {
+            var (request, problem) = await ReadRequestAsync<TRequest>(ctx, ct);
+            if (problem is not null)
+            {
+                await problem.ExecuteAsync(ctx);
+                return;
+            }
+
+            if (RequestValidator.Validate(request!) is { } errors)
+            {
+                await TypedResults.ValidationProblem(errors).ExecuteAsync(ctx);
+                return;
+            }
+
+            try
+            {
+                await handle(request!);
+            }
+            catch (RequestException e) when (!ctx.Response.HasStarted)
+            {
+                IResult result = e.Errors is { } fieldErrors
+                    ? TypedResults.ValidationProblem(fieldErrors.ToDictionary(f => JsonNamingPolicy.CamelCase.ConvertName(f.Key), f => f.Value))
+                    : TypedResults.Problem(detail: e.Message, statusCode: e.StatusCode);
+                await result.ExecuteAsync(ctx);
+            }
+        }
+
+        private static async Task<(TRequest? Request, IResult? Problem)> ReadRequestAsync<TRequest>(HttpContext ctx, CancellationToken ct)
         {
             var hasParameterlessCtor = typeof(TRequest).GetConstructor(Type.EmptyTypes) != null;
 
@@ -123,24 +139,30 @@ public static class ReihoApiEndpointRouteBuilderExtensions
 
             if (!hasBody)
             {
-                if (hasParameterlessCtor)
-                    return (true, (TRequest)Activator.CreateInstance(typeof(TRequest))!);
-                else
-                    return (false, default);
+                return hasParameterlessCtor
+                    ? ((TRequest)Activator.CreateInstance(typeof(TRequest))!, null)
+                    : (default, BodyRequired());
             }
-            else
+
+            try
             {
-                try
-                {
-                    var request = await JsonSerializer.DeserializeAsync<TRequest>(ctx.Request.Body, SerializerOptions, cancellationToken: ct);
-                    return (request != null, request);
-                }
-                catch (JsonException)
-                {
-                    return (false, default);
-                }
+                var request = await JsonSerializer.DeserializeAsync<TRequest>(ctx.Request.Body, SerializerOptions, cancellationToken: ct);
+                return request is null ? (default, BodyRequired()) : (request, null);
+            }
+            catch (JsonException e)
+            {
+                // The path names the field when the JSON is well formed but a value does not fit; the message is not
+                // returned, as it names .NET types.
+                var field = e.Path is { Length: > 2 } path && path.StartsWith("$.") ? path[2..] : null;
+                return (default, field is null
+                    ? TypedResults.Problem(detail: "The request body is not valid JSON for this request.", statusCode: StatusCodes.Status400BadRequest)
+                    : TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = ["The value is not valid."] }));
             }
         }
 
     }
+
+    // A new result each time: the problem details service adds to the ProblemDetails it writes, e.g. a trace id.
+    private static IResult BodyRequired() =>
+        TypedResults.Problem(detail: "A JSON body is required for this request.", statusCode: StatusCodes.Status400BadRequest);
 }

@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Kododo.Reiho.AspNetCore.API;
 
 namespace Kododo.Reiho.AspNetCore.Tests.API;
@@ -65,4 +66,46 @@ public sealed class GetColorHandler : IRequestHandler<GetColorRequest, ColorResu
 {
     public Task<ColorResult> HandleAsync(GetColorRequest request, CancellationToken cancellationToken)
         => Task.FromResult(new ColorResult(request.Color));
+}
+
+// ── Validation ────────────────────────────────────────────────────────────────
+
+public sealed record CreateUserRequest([Required, StringLength(5)] string? Name, [Range(1, 120)] int Age)
+    : IRequest<string>, IValidatableObject
+{
+    [EmailAddress]
+    public string? Email { get; init; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (Name == "root")
+            yield return new ValidationResult("The name is reserved.", [nameof(Name)]);
+    }
+}
+
+public sealed class CreateUserHandler : IRequestHandler<CreateUserRequest, string>
+{
+    public static int CallCount;
+
+    public Task<string> HandleAsync(CreateUserRequest request, CancellationToken cancellationToken)
+    {
+        Interlocked.Increment(ref CallCount);
+        return Task.FromResult($"Created {request.Name}.");
+    }
+}
+
+// ── Errors thrown by a handler ────────────────────────────────────────────────
+
+public sealed record FindUserRequest(int Id) : IRequest<string>;
+
+public sealed class FindUserHandler : IRequestHandler<FindUserRequest, string>
+{
+    public Task<string> HandleAsync(FindUserRequest request, CancellationToken cancellationToken) => request.Id switch
+    {
+        1 => Task.FromResult("Ada"),
+        2 => throw RequestException.Conflict("User 2 is being merged."),
+        3 => throw RequestException.Invalid(nameof(request.Id), "Ids below 10 are reserved."),
+        4 => throw new InvalidOperationException("Not a request error."),
+        _ => throw RequestException.NotFound($"User {request.Id} does not exist."),
+    };
 }
