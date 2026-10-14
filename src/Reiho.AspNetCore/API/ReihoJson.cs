@@ -11,6 +11,8 @@ internal static class ReihoJson
     public static JsonSerializerOptions Options { get; } = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true,
+        // A field the request does not have is a mistake, e.g. a typo, rather than something to drop silently.
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         Converters = { new JsonStringEnumConverter() }
     };
 }

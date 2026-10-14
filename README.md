@@ -133,7 +133,15 @@ public sealed record CreateUser([Required, StringLength(50)] string Name, [Range
   "errors": { "name": ["The name field is required."], "age": ["The field age must be between 18 and 120."] } }
 ```
 
-Only the request's own properties are checked, not nested objects.
+Checks go on into nested objects and collections of them, with the field's path as the key (`address.street`, `lines[1].quantity`). Requests are also strict about their shape:
+
+| | |
+|---|---|
+| A field the request does not have, e.g. a typo | `400`, `"The request has no such field."` under its path |
+| `null`, or no value, for a reference the code declares non-nullable (`string Name`) | `400`, `"The name field is required."`; an empty string is a value |
+| A nullable reference (`string? Note`) or a value type | as before |
+
+Non-nullable references count as required as in MVC; it takes nullable reference types to be enabled in the project that declares the request.
 
 A handler ends a request with an error the caller can act on by throwing `RequestException`:
 
