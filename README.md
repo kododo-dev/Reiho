@@ -212,6 +212,22 @@ Filters run in the order they are added, scoped to the request. `context.Transpo
 
 ---
 
+## Observability
+
+Each request gets an activity from the `Kododo.Reiho` source, around its filters and handler, named after the request and tagged with `reiho.request`, `reiho.transport` (`http` or `mcp`) and, for a `RequestException`, `reiho.status_code`. The HTTP request's own activity gets `reiho.request` too, so traces show `FindOrders` rather than only `POST /api/FindOrders`:
+
+```csharp
+builder.Services.AddOpenTelemetry().WithTracing(t => t.AddSource(ReihoTelemetry.ActivitySourceName));
+```
+
+Requests turned away, whether not valid or ended by a `RequestException`, are logged at debug level under `Kododo.Reiho.Requests`, with the request, the reason and the fields at fault:
+
+```csharp
+builder.Logging.AddFilter(ReihoTelemetry.LogCategory, LogLevel.Debug);
+```
+
+---
+
 ## OpenAPI
 
 Endpoints describe themselves for ApiExplorer, so `Microsoft.AspNetCore.OpenApi`, Swashbuckle and Scalar document them without extra setup:
@@ -330,7 +346,7 @@ Files are read once and cached in memory. Multiple SPAs mounted at different pat
 
 ---
 
-## MCP tools (preview)
+## MCP tools
 
 `Kododo.Reiho.AspNetCore.Mcp` offers requests as tools to AI agents over the [Model Context Protocol](https://modelcontextprotocol.io), next to their HTTP endpoints, with the official MCP C# SDK.
 
