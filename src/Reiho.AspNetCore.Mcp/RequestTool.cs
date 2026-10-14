@@ -1,8 +1,9 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Kododo.Reiho.AspNetCore.API;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
@@ -63,10 +64,27 @@ internal abstract class RequestTool : McpServerTool
         if (parsed is null)
             return Error("The arguments are missing.");
 
+        // The same checks and errors as over HTTP, as text the agent can act on.
+        if (RequestValidator.Validate(parsed) is { } errors)
+            return Error(Invalid(errors));
+
         var services = request.Services
             ?? throw new InvalidOperationException("The MCP request has no service provider to resolve the handler from.");
-        return await HandleAsync(parsed, services, cancellationToken);
+        try
+        {
+            return await HandleAsync(parsed, services, cancellationToken);
+        }
+        catch (RequestException e)
+        {
+            return Error(e.Errors is { } fieldErrors
+                ? Invalid(RequestValidator.ByJsonName(fieldErrors))
+                : $"{e.StatusCode} {ReasonPhrases.GetReasonPhrase(e.StatusCode)}: {e.Message}");
+        }
     }
+
+    private static string Invalid(IReadOnlyDictionary<string, string[]> errors) =>
+        "The arguments are not valid:" + string.Concat(errors.SelectMany(field =>
+            field.Value.Select(message => field.Key.Length == 0 ? $"\n- {message}" : $"\n- {field.Key}: {message}")));
 
     protected abstract Task<CallToolResult> HandleAsync(object request, IServiceProvider services, CancellationToken cancellationToken);
 

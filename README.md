@@ -155,7 +155,7 @@ Endpoints describe themselves for ApiExplorer, so `Microsoft.AspNetCore.OpenApi`
 | Operation id | the full route (`/api/GetUser` → `Api_GetUser`) |
 | Summary | the request's `[Description]` |
 | Request body | the request as JSON; optional when it has a parameterless constructor |
-| Responses | `200` with the result type, or `204` for an `IRequest`; `400` as plain text |
+| Responses | `200` with the result type, or `204` for an `IRequest`; `400` as a validation problem |
 
 ```csharp
 [Description("Finds the orders of a customer, newest first.")]
@@ -293,7 +293,8 @@ app.MapMcp("/mcp").RequireAuthorization();
 | Tool name | the request's name in snake case (`find_orders`), or `[McpTool(Name = ...)]`; `o.Prefix` puts a prefix before every name |
 | Input schema | the request's properties, with their `[Description]` |
 | Result | the handler's result as JSON; `Done.` for an `IRequest` |
-| Invalid arguments | an error result the agent can read and correct |
+| Invalid arguments | an error result the agent can read and correct, also for the request's validation |
+| `RequestException` | an error result with its status and message, e.g. `404 Not Found: User 9 does not exist.` |
 | Hints | `ReadOnly`, `Destructive`, `Idempotent`, `OpenWorld` on `[McpTool]` |
 
 Requests without `[McpTool]` are not offered. A library that cannot reference the attribute's version of Reiho includes its requests with `o.Include<TRequest>(new McpToolAttribute { ReadOnly = true })`.
