@@ -177,6 +177,14 @@ public sealed class RequestHandlingTests : IAsyncLifetime
         Assert.Equal("null", body);
     }
 
+    [Fact]
+    public async Task Result_is_written_without_indentation()
+    {
+        var json = new StringContent("""{"name":"Ada"}""", Encoding.UTF8, "application/json");
+        var response = await _client!.PostAsync("/GetGreetingRequest", json);
+        Assert.Equal("""{"message":"Hello, Ada!"}""", await response.Content.ReadAsStringAsync());
+    }
+
     // ── Enum serialization ───────────────────────────────────────────────────
 
     [Fact]
