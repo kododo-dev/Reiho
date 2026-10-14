@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Reiho.AspNetCore\Reiho.AspNetCore.csproj" />
+    <ProjectReference Include="..\Reiho.AspNetCore.Mcp\Reiho.AspNetCore.Mcp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

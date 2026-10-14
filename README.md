@@ -132,6 +132,50 @@ if (await users.NameTakenAsync(request.Name, ct))
 
 The message becomes the problem's `detail`, so write it for the caller. Other exceptions are left to the application, e.g. its `UseExceptionHandler()`. With `AddProblemDetails()`, Reiho writes its problems through the app's `IProblemDetailsService`, so `CustomizeProblemDetails` applies to them too.
 
+**Attributes:** attributes on the request type apply to its endpoint, as on a controller action, including those inherited from a base request:
+
+```csharp
+[Authorize(Roles = "Admin")]
+public sealed record DeleteUser(int Id) : IRequest;
+
+[AllowAnonymous]   // open, even in a group with RequireAuthorization()
+public sealed record GetStatus : IRequest<Status>;
+```
+
+This works for any endpoint metadata attribute, e.g. `[EnableRateLimiting]` or `[Tags]`. An `[Authorize]` request needs `UseAuthorization()` in the pipeline; without it, ASP.NET Core rejects calls to that endpoint rather than serving them unprotected.
+
+---
+
+## OpenAPI
+
+Endpoints describe themselves for ApiExplorer, so `Microsoft.AspNetCore.OpenApi`, Swashbuckle and Scalar document them without extra setup:
+
+| | |
+|---|---|
+| Operation id | the full route (`/api/GetUser` → `Api_GetUser`) |
+| Summary | the request's `[Description]` |
+| Request body | the request as JSON; optional when it has a parameterless constructor |
+| Responses | `200` with the result type, or `204` for an `IRequest`; `400` as plain text |
+
+```csharp
+[Description("Finds the orders of a customer, newest first.")]
+public sealed record FindOrders([property: Description("Customer id, e.g. c-63")] string CustomerId) : IRequest<Order[]>;
+```
+
+```csharp
+builder.Services.AddOpenApi();
+app.MapOpenApi();
+app.MapRequests(typeof(Program).Assembly);
+```
+
+Each endpoint is named after its full route, group prefix included (`/api/admin/GetUser` → `Api_Admin_GetUser`), which becomes the operation id that client generators (NSwag, Kiota, openapi-generator) build method names from. A route is unique, so requests of the same name mapped in different groups, e.g. by two libraries, do not clash.
+
+Reiho writes enums as strings. The document's schemas follow the app's own JSON options, so add the same converter there to document them as strings:
+
+```csharp
+builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+```
+
 ---
 
 ## Embedded SPA
@@ -217,6 +261,44 @@ app.MapGroup("/ui").MapEmbeddedSpa(
 | All other assets | `public, max-age=31536000, immutable` |
 
 Files are read once and cached in memory. Multiple SPAs mounted at different paths are cached independently.
+
+---
+
+## MCP tools (preview)
+
+`Kododo.Reiho.AspNetCore.Mcp` offers requests as tools to AI agents over the [Model Context Protocol](https://modelcontextprotocol.io), next to their HTTP endpoints, with the official MCP C# SDK.
+
+```bash
+dotnet add package Kododo.Reiho.AspNetCore.Mcp
+```
+
+Mark the requests to offer with `[McpTool]` and describe them; agents choose and call tools from these descriptions:
+
+```csharp
+[McpTool(ReadOnly = true), Description("Finds the orders of a customer, newest first.")]
+public sealed record FindOrders([property: Description("Customer id, e.g. c-63")] string CustomerId) : IRequest<Order[]>;
+```
+
+```csharp
+builder.Services.AddRequestHandlers(typeof(Program).Assembly);
+builder.Services.AddMcpServer()
+    .WithHttpTransport()
+    .WithRequests(typeof(Program).Assembly);
+
+app.MapMcp("/mcp").RequireAuthorization();
+```
+
+| | |
+|---|---|
+| Tool name | the request's name in snake case (`find_orders`), or `[McpTool(Name = ...)]`; `o.Prefix` puts a prefix before every name |
+| Input schema | the request's properties, with their `[Description]` |
+| Result | the handler's result as JSON; `Done.` for an `IRequest` |
+| Invalid arguments | an error result the agent can read and correct |
+| Hints | `ReadOnly`, `Destructive`, `Idempotent`, `OpenWorld` on `[McpTool]` |
+
+Requests without `[McpTool]` are not offered. A library that cannot reference the attribute's version of Reiho includes its requests with `o.Include<TRequest>(new McpToolAttribute { ReadOnly = true })`.
+
+A tool call does not go through the request's HTTP endpoint, so endpoint filters and the endpoint's authorization do not apply: protect the MCP endpoint itself. `[Authorize]` on a request is honoured per tool after `AddAuthorizationFilters()`. On net8.0 and net9.0 the MCP SDK brings the 10.x `Microsoft.Extensions.*` packages; align the app's own `Microsoft.Extensions.Logging` with them if it references an older one.
 
 ---
 

@@ -1,5 +1,7 @@
+﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using Kododo.Reiho.AspNetCore.API;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Kododo.Reiho.AspNetCore.Tests.API;
 
@@ -44,6 +46,7 @@ public sealed class GetNullHandler : IRequestHandler<GetNullRequest, GreetingRes
 
 // ── Result request ────────────────────────────────────────────────────────────
 
+[Description("Greets a person by name.")]
 public sealed record GetGreetingRequest(string Name) : IRequest<GreetingResult>;
 
 public sealed record GreetingResult(string Message);
@@ -108,4 +111,32 @@ public sealed class FindUserHandler : IRequestHandler<FindUserRequest, string>
         4 => throw new InvalidOperationException("Not a request error."),
         _ => throw RequestException.NotFound($"User {request.Id} does not exist."),
     };
+}
+
+// ── Attributes applied to the endpoint ────────────────────────────────────────
+
+[Authorize]
+public sealed record GetSecretRequest : IRequest<string>;
+
+public sealed class GetSecretHandler : IRequestHandler<GetSecretRequest, string>
+{
+    public Task<string> HandleAsync(GetSecretRequest request, CancellationToken cancellationToken) => Task.FromResult("secret");
+}
+
+[AllowAnonymous]
+public sealed record GetPublicRequest : IRequest<string>;
+
+public sealed class GetPublicHandler : IRequestHandler<GetPublicRequest, string>
+{
+    public Task<string> HandleAsync(GetPublicRequest request, CancellationToken cancellationToken) => Task.FromResult("public");
+}
+
+[Authorize]
+public abstract record AdminRequest;
+
+public sealed record ResetRequest : AdminRequest, IRequest;
+
+public sealed class ResetHandler : IRequestHandler<ResetRequest>
+{
+    public Task HandleAsync(ResetRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
 }

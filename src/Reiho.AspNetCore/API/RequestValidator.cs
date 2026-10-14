@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Kododo.Reiho.AspNetCore.API;
@@ -78,8 +77,11 @@ internal static class RequestValidator
             .ToArray();
     }
 
-    // The naming of the web defaults Reiho serializes with.
-    private static string JsonName(string name) => JsonNamingPolicy.CamelCase.ConvertName(name);
+    /// <summary><paramref name="errors"/> keyed by the JSON names of their fields, e.g. from <see cref="RequestException.Errors"/>.</summary>
+    public static Dictionary<string, string[]> ByJsonName(IReadOnlyDictionary<string, string[]> errors) =>
+        errors.ToDictionary(e => JsonName(e.Key), e => e.Value);
+
+    private static string JsonName(string name) => ReihoJson.Options.PropertyNamingPolicy?.ConvertName(name) ?? name;
 
     private sealed record Member(PropertyInfo Property, string Name, ValidationAttribute[] Attributes);
 }
