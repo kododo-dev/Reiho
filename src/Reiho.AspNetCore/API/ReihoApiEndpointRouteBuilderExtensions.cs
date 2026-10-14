@@ -2,7 +2,6 @@
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -14,53 +13,19 @@ namespace Kododo.Reiho.AspNetCore.API;
 
 public static class ReihoApiEndpointRouteBuilderExtensions
 {
-    // One shared instance: System.Text.Json caches type metadata per options instance.
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
-    {
-        PropertyNameCaseInsensitive = true,
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() }
-    };
-    
     extension(IEndpointRouteBuilder endpoints)
     {
         public IEndpointRouteBuilder MapRequests(Assembly assembly)
         {
-            // IRequest
-            var requestTypes = assembly.GetTypes()
-                .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(IRequest).IsAssignableFrom(t) && !t.IsGenericType);
-
-            var mapMethod = typeof(ReihoApiEndpointRouteBuilderExtensions)
-                .GetMethods()
+            var map = typeof(ReihoApiEndpointRouteBuilderExtensions).GetMethods()
                 .First(m => m is { Name: "Map", IsGenericMethodDefinition: true } && m.GetGenericArguments().Length == 1);
-
-            foreach (var requestType in requestTypes)
-            {
-                var genericMap = mapMethod.MakeGenericMethod(requestType);
-                genericMap.Invoke(null, [endpoints, null]);
-            }
-
-            // IRequest<TResult>
-            var requestResultTypes = assembly.GetTypes()
-                .Where(t => t is { IsClass: true, IsAbstract: false } &&
-                            t.GetInterfaces().Any(i =>
-                                i.IsGenericType &&
-                                i.GetGenericTypeDefinition() == typeof(IRequest<>)) &&
-                            !t.IsGenericType);
-
-            var mapResultMethod = typeof(ReihoApiEndpointRouteBuilderExtensions)
-                .GetMethods()
+            var mapResult = typeof(ReihoApiEndpointRouteBuilderExtensions).GetMethods()
                 .First(m => m is { Name: "Map", IsGenericMethodDefinition: true } && m.GetGenericArguments().Length == 2);
 
-            foreach (var requestType in requestResultTypes)
+            foreach (var (request, result) in RequestType.Find(assembly))
             {
-                var iRequestInterface = requestType.GetInterfaces()
-                    .First(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>));
-
-                var resultType = iRequestInterface.GetGenericArguments()[0];
-
-                var genericMap = mapResultMethod.MakeGenericMethod(requestType, resultType);
-                genericMap.Invoke(null, [endpoints, null]);
+                var generic = result is null ? map.MakeGenericMethod(request) : mapResult.MakeGenericMethod(request, result);
+                generic.Invoke(null, [endpoints, null]);
             }
 
             return endpoints;
@@ -83,6 +48,7 @@ public static class ReihoApiEndpointRouteBuilderExtensions
                 await handler.HandleAsync(request!, ct);
                 ctx.Response.StatusCode = StatusCodes.Status204NoContent;
             })
+            .WithRequestAttributes<TRequest>()
             .Describe<TRequest>()
             .Produces(StatusCodes.Status204NoContent);
 
@@ -109,10 +75,11 @@ public static class ReihoApiEndpointRouteBuilderExtensions
                     ctx.Response.Body,
                     result,
                     result?.GetType() ?? typeof(object),
-                    options: SerializerOptions,
+                    options: ReihoJson.Options,
                     cancellationToken: ct
                 );
             })
+            .WithRequestAttributes<TRequest>()
             .Describe<TRequest>()
             .Produces<TResult>(StatusCodes.Status200OK, "application/json");
 
@@ -139,7 +106,7 @@ public static class ReihoApiEndpointRouteBuilderExtensions
             {
                 try
                 {
-                    var request = await JsonSerializer.DeserializeAsync<TRequest>(ctx.Request.Body, SerializerOptions, cancellationToken: ct);
+                    var request = await JsonSerializer.DeserializeAsync<TRequest>(ctx.Request.Body, ReihoJson.Options, cancellationToken: ct);
                     return (request != null, request);
                 }
                 catch (JsonException)
@@ -203,4 +170,9 @@ public static class ReihoApiEndpointRouteBuilderExtensions
         });
         return string.Join("_", segments.Where(s => s.Length > 0));
     }
+
+    // The request's attributes, e.g. [Authorize], [AllowAnonymous] or [EnableRateLimiting], apply to its endpoint as
+    // they would on a controller action; inherited ones too, so a base request can carry them for all derived requests.
+    private static RouteHandlerBuilder WithRequestAttributes<TRequest>(this RouteHandlerBuilder builder) =>
+        builder.WithMetadata(typeof(TRequest).GetCustomAttributes(inherit: true));
 }

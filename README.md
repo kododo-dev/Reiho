@@ -94,6 +94,18 @@ POST /DeleteUser
 | `IRequest` | `204 No Content` | — |
 | `IRequest<TResult>` | `200 OK` | JSON |
 
+**Attributes:** attributes on the request type apply to its endpoint, as on a controller action, including those inherited from a base request:
+
+```csharp
+[Authorize(Roles = "Admin")]
+public sealed record DeleteUser(int Id) : IRequest;
+
+[AllowAnonymous]   // open, even in a group with RequireAuthorization()
+public sealed record GetStatus : IRequest<Status>;
+```
+
+This works for any endpoint metadata attribute, e.g. `[EnableRateLimiting]` or `[Tags]`. An `[Authorize]` request needs `UseAuthorization()` in the pipeline; without it, ASP.NET Core rejects calls to that endpoint rather than serving them unprotected.
+
 ---
 
 ## OpenAPI
@@ -211,6 +223,44 @@ app.MapGroup("/ui").MapEmbeddedSpa(
 | All other assets | `public, max-age=31536000, immutable` |
 
 Files are read once and cached in memory. Multiple SPAs mounted at different paths are cached independently.
+
+---
+
+## MCP tools (preview)
+
+`Kododo.Reiho.AspNetCore.Mcp` offers requests as tools to AI agents over the [Model Context Protocol](https://modelcontextprotocol.io), next to their HTTP endpoints, with the official MCP C# SDK.
+
+```bash
+dotnet add package Kododo.Reiho.AspNetCore.Mcp
+```
+
+Mark the requests to offer with `[McpTool]` and describe them; agents choose and call tools from these descriptions:
+
+```csharp
+[McpTool(ReadOnly = true), Description("Finds the orders of a customer, newest first.")]
+public sealed record FindOrders([property: Description("Customer id, e.g. c-63")] string CustomerId) : IRequest<Order[]>;
+```
+
+```csharp
+builder.Services.AddRequestHandlers(typeof(Program).Assembly);
+builder.Services.AddMcpServer()
+    .WithHttpTransport()
+    .WithRequests(typeof(Program).Assembly);
+
+app.MapMcp("/mcp").RequireAuthorization();
+```
+
+| | |
+|---|---|
+| Tool name | the request's name in snake case (`find_orders`), or `[McpTool(Name = ...)]`; `o.Prefix` puts a prefix before every name |
+| Input schema | the request's properties, with their `[Description]` |
+| Result | the handler's result as JSON; `Done.` for an `IRequest` |
+| Invalid arguments | an error result the agent can read and correct |
+| Hints | `ReadOnly`, `Destructive`, `Idempotent`, `OpenWorld` on `[McpTool]` |
+
+Requests without `[McpTool]` are not offered. A library that cannot reference the attribute's version of Reiho includes its requests with `o.Include<TRequest>(new McpToolAttribute { ReadOnly = true })`.
+
+A tool call does not go through the request's HTTP endpoint, so endpoint filters and the endpoint's authorization do not apply: protect the MCP endpoint itself. `[Authorize]` on a request is honoured per tool after `AddAuthorizationFilters()`. On net8.0 and net9.0 the MCP SDK brings the 10.x `Microsoft.Extensions.*` packages; align the app's own `Microsoft.Extensions.Logging` with them if it references an older one.
 
 ---
 
