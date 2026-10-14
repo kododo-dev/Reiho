@@ -85,7 +85,8 @@ POST /DeleteUser
 |---|---|
 | Body present | Deserialized from JSON |
 | No body, parameterless constructor exists | Empty instance created |
-| No body, no parameterless constructor | `400 Bad Request` |
+| No body, no parameterless constructor | `400 Bad Request`, problem details |
+| Body that is not valid JSON for the request | `400 Bad Request`, problem details; a value of the wrong type is named in `errors` |
 
 **Response:**
 
@@ -93,6 +94,43 @@ POST /DeleteUser
 |---|---|---|
 | `IRequest` | `204 No Content` | — |
 | `IRequest<TResult>` | `200 OK` | JSON |
+| invalid request, `RequestException` | `4xx` | problem details (`application/problem+json`) |
+
+---
+
+## Validation and errors
+
+Data annotations on the request are checked before its handler runs, also on the parameters of a positional record; `IValidatableObject` runs once they pass. A request that fails gets `400` with the messages per field, under the fields' JSON names:
+
+```csharp
+public sealed record CreateUser([Required, StringLength(50)] string Name, [Range(18, 120)] int Age) : IRequest<UserDto>;
+```
+
+```json
+{ "title": "One or more validation errors occurred.", "status": 400,
+  "errors": { "name": ["The name field is required."], "age": ["The field age must be between 18 and 120."] } }
+```
+
+Only the request's own properties are checked, not nested objects.
+
+A handler ends a request with an error the caller can act on by throwing `RequestException`:
+
+```csharp
+var user = await users.FindAsync(request.Id, ct)
+    ?? throw RequestException.NotFound($"User {request.Id} does not exist.");    // 404
+if (await users.NameTakenAsync(request.Name, ct))
+    throw RequestException.Invalid(nameof(request.Name), "The name is taken.");  // 400, errors.name
+```
+
+| | Status |
+|---|---|
+| `new RequestException(message)` | `400`, or the status passed |
+| `RequestException.Invalid(field, message)` | `400` with `errors` |
+| `RequestException.NotFound(message)` | `404` |
+| `RequestException.Forbidden(message)` | `403` |
+| `RequestException.Conflict(message)` | `409` |
+
+The message becomes the problem's `detail`, so write it for the caller. Other exceptions are left to the application, e.g. its `UseExceptionHandler()`. With `AddProblemDetails()`, Reiho writes its problems through the app's `IProblemDetailsService`, so `CustomizeProblemDetails` applies to them too.
 
 **Attributes:** attributes on the request type apply to its endpoint, as on a controller action, including those inherited from a base request:
 
@@ -117,7 +155,7 @@ Endpoints describe themselves for ApiExplorer, so `Microsoft.AspNetCore.OpenApi`
 | Operation id | the full route (`/api/GetUser` → `Api_GetUser`) |
 | Summary | the request's `[Description]` |
 | Request body | the request as JSON; optional when it has a parameterless constructor |
-| Responses | `200` with the result type, or `204` for an `IRequest`; `400` as plain text |
+| Responses | `200` with the result type, or `204` for an `IRequest`; `400` as a validation problem |
 
 ```csharp
 [Description("Finds the orders of a customer, newest first.")]
@@ -255,7 +293,8 @@ app.MapMcp("/mcp").RequireAuthorization();
 | Tool name | the request's name in snake case (`find_orders`), or `[McpTool(Name = ...)]`; `o.Prefix` puts a prefix before every name |
 | Input schema | the request's properties, with their `[Description]` |
 | Result | the handler's result as JSON; `Done.` for an `IRequest` |
-| Invalid arguments | an error result the agent can read and correct |
+| Invalid arguments | an error result the agent can read and correct, also for the request's validation |
+| `RequestException` | an error result with its status and message, e.g. `404 Not Found: User 9 does not exist.` |
 | Hints | `ReadOnly`, `Destructive`, `Idempotent`, `OpenWorld` on `[McpTool]` |
 
 Requests without `[McpTool]` are not offered. A library that cannot reference the attribute's version of Reiho includes its requests with `o.Include<TRequest>(new McpToolAttribute { ReadOnly = true })`.

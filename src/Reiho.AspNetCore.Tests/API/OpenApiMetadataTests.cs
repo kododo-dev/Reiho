@@ -61,7 +61,9 @@ public sealed class OpenApiMetadataTests : IAsyncLifetime
 
         var ok = Assert.Single(api.SupportedResponseTypes, r => r.StatusCode == StatusCodes.Status200OK);
         Assert.Equal(typeof(GreetingResult), ok.Type);
-        Assert.Contains(api.SupportedResponseTypes, r => r.StatusCode == StatusCodes.Status400BadRequest);
+        var invalid = Assert.Single(api.SupportedResponseTypes, r => r.StatusCode == StatusCodes.Status400BadRequest);
+        Assert.Equal(typeof(HttpValidationProblemDetails), invalid.Type);
+        Assert.Contains(invalid.ApiResponseFormats, f => f.MediaType == "application/problem+json");
     }
 
     [Fact]

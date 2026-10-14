@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using Kododo.Reiho.AspNetCore.API;
 using Kododo.Reiho.AspNetCore.Mcp;
+using Kododo.Reiho.AspNetCore.Tests.API;
 using Microsoft.AspNetCore.TestHost;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
@@ -110,6 +111,39 @@ public sealed class McpToolTests
 
         Assert.True(result.IsError);
         Assert.StartsWith("The arguments do not fit the input schema", TextOf(result));
+    }
+
+    [Fact]
+    public async Task Call_ThatFailsValidation_ListsTheErrors()
+    {
+        var (host, client) = await StartAsync(o => o.Include<CreateUserRequest>());
+        using var _ = host;
+        await using var __ = client;
+
+        var result = await client.CallToolAsync("create_user_request", new Dictionary<string, object?> { ["name"] = "Alexandra", ["age"] = 0 });
+
+        // The handler would answer "Created ...", not an error.
+        Assert.True(result.IsError);
+        var text = TextOf(result);
+        Assert.StartsWith("The arguments are not valid:", text);
+        Assert.Contains("\n- name: ", text);
+        Assert.Contains("\n- age: ", text);
+    }
+
+    [Theory]
+    [InlineData(9, "404 Not Found: User 9 does not exist.")]
+    [InlineData(2, "409 Conflict: User 2 is being merged.")]
+    [InlineData(3, "The arguments are not valid:\n- id: Ids below 10 are reserved.")]
+    public async Task Call_WhoseHandlerThrowsARequestException_IsAnErrorTheAgentCanRead(int id, string expected)
+    {
+        var (host, client) = await StartAsync(o => o.Include<FindUserRequest>());
+        using var _ = host;
+        await using var __ = client;
+
+        var result = await client.CallToolAsync("find_user_request", new Dictionary<string, object?> { ["id"] = id });
+
+        Assert.True(result.IsError);
+        Assert.Equal(expected, TextOf(result));
     }
 
     [Fact]

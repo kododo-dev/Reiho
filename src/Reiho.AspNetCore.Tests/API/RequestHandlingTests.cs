@@ -95,6 +95,10 @@ public sealed class RequestHandlingTests : IAsyncLifetime
         var badJson = new StringContent("not-json", Encoding.UTF8, "application/json");
         var response = await _client!.PostAsync("/DeleteItemRequest", badJson);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        // A problem details response also without AddProblemDetails().
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(400, problem.RootElement.GetProperty("status").GetInt32());
     }
 
     [Fact]
