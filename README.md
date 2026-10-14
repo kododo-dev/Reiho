@@ -172,6 +172,28 @@ An MCP tool returns a `FileResponse` as an embedded resource, as text for a text
 
 ---
 
+## Request filters
+
+An `IRequestFilter` runs around the handler of every request, over HTTP and as an MCP tool alike, once the request has been read and validated. Unlike an endpoint filter, it sees the request object, e.g. for auditing:
+
+```csharp
+public sealed class AuditFilter(ILogger<AuditFilter> logger) : IRequestFilter
+{
+    public async ValueTask<object?> InvokeAsync(RequestFilterContext context, RequestFilterDelegate next)
+    {
+        var result = await next(context);
+        logger.LogInformation("{User} ran {Request}", context.HttpContext?.User.Identity?.Name, context.Request);
+        return result;
+    }
+}
+
+builder.Services.AddRequestFilter<AuditFilter>();
+```
+
+Filters run in the order they are added, scoped to the request. `context.Transport` says whether the request came over HTTP or MCP; `context.HttpContext` is `null` for an MCP tool call. A filter stops a request with a `RequestException`, or answers it without calling `next`, with a result of the request's result type.
+
+---
+
 ## OpenAPI
 
 Endpoints describe themselves for ApiExplorer, so `Microsoft.AspNetCore.OpenApi`, Swashbuckle and Scalar document them without extra setup:
