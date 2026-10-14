@@ -29,13 +29,49 @@ app.MapGroup("/api").MapRequests(typeof(Program).Assembly);
 
 Requests without a return value use `IRequest` / `IRequestHandler<T>` and return `204 No Content`.
 
-## Request body behaviour
+## Validation and errors
 
-| Situation | Result |
-|---|---|
-| Body present | Deserialized from JSON |
-| No body, parameterless constructor exists | Empty instance created |
-| No body, no parameterless constructor | `400 Bad Request` |
+Data annotations on the request, also on positional record parameters, are checked before the handler runs; a request that fails gets `400` with the errors per field as problem details (RFC 9457). A handler ends a request with an error the caller can act on by throwing `RequestException`:
+
+```csharp
+public sealed record CreateUser([Required, StringLength(50)] string Name) : IRequest<UserDto>;
+
+throw RequestException.NotFound($"User {request.Id} does not exist.");       // 404
+throw RequestException.Invalid(nameof(request.Name), "The name is taken.");   // 400, errors.name
+```
+
+`Conflict` (409) and `Forbidden` (403) work the same way. With `AddProblemDetails()`, problems go through the app's `IProblemDetailsService`.
+
+## Attributes
+
+Attributes on the request apply to its endpoint, as on a controller action, e.g. `[Authorize(Roles = "Admin")]`, `[AllowAnonymous]` or `[EnableRateLimiting]`.
+
+## Files
+
+`IFormFile` properties make a request take `multipart/form-data`, with an antiforgery token required as for minimal API forms (`[RequireAntiforgeryToken(false)]` opts out). A handler returns a file with `FileResponse`:
+
+```csharp
+public sealed record UploadAvatar(int UserId) : IRequest { [Required] public IFormFile? Avatar { get; init; } }
+public sealed record ExportOrders : IRequest<FileResponse>;
+
+return FileResponse.FromText(csv, "text/csv", "orders.csv");
+```
+
+## Request filters
+
+`IRequestFilter` runs around every handler, over HTTP and MCP, once the request is validated, and sees the request object:
+
+```csharp
+builder.Services.AddRequestFilter<AuditFilter>();
+```
+
+## OpenAPI
+
+Endpoints describe themselves for ApiExplorer, so `Microsoft.AspNetCore.OpenApi`, Swashbuckle and Scalar document them: request body, result type, problem responses, the request's `[Description]` as summary, and an operation id from the full route (`/api/GetUser` → `Api_GetUser`).
+
+## MCP
+
+[Kododo.Reiho.AspNetCore.Mcp](https://www.nuget.org/packages/Kododo.Reiho.AspNetCore.Mcp) offers requests as tools to AI agents.
 
 ## Embedded SPA
 
@@ -74,4 +110,4 @@ The value must be the full public prefix as seen by the browser — the proxy's 
 
 ## Links
 
-- Source: https://github.com/kododo-dev/Reiho
+- Source and full documentation: https://github.com/kododo-dev/Reiho
