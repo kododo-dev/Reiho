@@ -94,6 +94,18 @@ POST /DeleteUser
 | `IRequest` | `204 No Content` | — |
 | `IRequest<TResult>` | `200 OK` | JSON |
 
+**Attributes:** attributes on the request type apply to its endpoint, as on a controller action, including those inherited from a base request:
+
+```csharp
+[Authorize(Roles = "Admin")]
+public sealed record DeleteUser(int Id) : IRequest;
+
+[AllowAnonymous]   // open, even in a group with RequireAuthorization()
+public sealed record GetStatus : IRequest<Status>;
+```
+
+This works for any endpoint metadata attribute, e.g. `[EnableRateLimiting]` or `[Tags]`. An `[Authorize]` request needs `UseAuthorization()` in the pipeline; without it, ASP.NET Core rejects calls to that endpoint rather than serving them unprotected.
+
 ---
 
 ## Embedded SPA

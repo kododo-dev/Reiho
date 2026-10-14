@@ -79,7 +79,8 @@ public static class ReihoApiEndpointRouteBuilderExtensions
                 var handler = ctx.RequestServices.GetRequiredService<IRequestHandler<TRequest>>();
                 await handler.HandleAsync(request!, ct);
                 ctx.Response.StatusCode = StatusCodes.Status204NoContent;
-            });
+            })
+            .WithRequestAttributes<TRequest>();
 
             return endpoints;
         }
@@ -107,7 +108,8 @@ public static class ReihoApiEndpointRouteBuilderExtensions
                     options: SerializerOptions,
                     cancellationToken: ct
                 );
-            });
+            })
+            .WithRequestAttributes<TRequest>();
 
             return endpoints;
         }
@@ -143,4 +145,9 @@ public static class ReihoApiEndpointRouteBuilderExtensions
         }
 
     }
+
+    // The request's attributes, e.g. [Authorize], [AllowAnonymous] or [EnableRateLimiting], apply to its endpoint as
+    // they would on a controller action; inherited ones too, so a base request can carry them for all derived requests.
+    private static RouteHandlerBuilder WithRequestAttributes<TRequest>(this RouteHandlerBuilder builder) =>
+        builder.WithMetadata(typeof(TRequest).GetCustomAttributes(inherit: true));
 }
