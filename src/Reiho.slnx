@@ -2,4 +2,5 @@
   <Project Path="Reiho.AspNetCore\Reiho.AspNetCore.csproj" />
   <Project Path="Reiho.AspNetCore.Mcp\Reiho.AspNetCore.Mcp.csproj" />
   <Project Path="Reiho.AspNetCore.Tests\Reiho.AspNetCore.Tests.csproj" />
+  <Project Path="Reiho.Sample\Reiho.Sample.csproj" />
 </Solution>

@@ -385,6 +385,12 @@ A tool call does not go through the request's HTTP endpoint, so endpoint filters
 
 ---
 
+## Sample
+
+[`src/Reiho.Sample`](src/Reiho.Sample) is a runnable order service using all of the above, with `curl` commands to try it.
+
+---
+
 ## Full example
 
 ```csharp
