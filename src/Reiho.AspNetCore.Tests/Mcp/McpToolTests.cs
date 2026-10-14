@@ -12,7 +12,8 @@ namespace Kododo.Reiho.AspNetCore.Tests.Mcp;
 
 public sealed class McpToolTests
 {
-    private static async Task<(IHost Host, McpClient Client)> StartAsync(Action<ReihoMcpOptions>? configure = null)
+    private static async Task<(IHost Host, McpClient Client)> StartAsync(
+        Action<ReihoMcpOptions>? configure = null, Action<IServiceCollection>? configureServices = null)
     {
         var host = await new HostBuilder()
             .ConfigureWebHost(web =>
@@ -22,6 +23,7 @@ public sealed class McpToolTests
                 {
                     services.AddRequestHandlers(Assembly.GetExecutingAssembly());
                     services.AddRouting();
+                    configureServices?.Invoke(services);
                     services.AddMcpServer().WithHttpTransport().WithRequests(Assembly.GetExecutingAssembly(), configure);
                 });
                 web.Configure(app =>
@@ -172,6 +174,26 @@ public sealed class McpToolTests
 
         var resource = Assert.IsType<BlobResourceContents>(Assert.IsType<EmbeddedResourceBlock>(Assert.Single(result.Content)).Resource);
         Assert.Equal([1, 2, 3], resource.DecodedData.ToArray());
+    }
+
+    [Fact]
+    public async Task Call_RunsTheRequestFilters()
+    {
+        var log = new FilterLog();
+        var (host, client) = await StartAsync(o => o.Include<FindUserRequest>(), services => services
+            .AddSingleton(log)
+            .AddRequestFilter<OuterFilter>()
+            .AddRequestFilter<InnerFilter>());
+        using var _ = host;
+        await using var __ = client;
+
+        var found = await client.CallToolAsync("find_user_request", new Dictionary<string, object?> { ["id"] = 1 });
+        var refused = await client.CallToolAsync("find_user_request", new Dictionary<string, object?> { ["id"] = 13 });
+
+        Assert.Equal("\"Ada\"", TextOf(found));
+        Assert.Equal("outer:FindUserRequest:Mcp:False", log.Entries[0]);
+        Assert.True(refused.IsError);
+        Assert.Equal("403 Forbidden: User 13 is off limits.", TextOf(refused));
     }
 
     [Fact]

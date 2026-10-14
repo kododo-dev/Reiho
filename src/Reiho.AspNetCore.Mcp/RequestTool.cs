@@ -72,7 +72,11 @@ internal abstract class RequestTool : McpServerTool
             ?? throw new InvalidOperationException("The MCP request has no service provider to resolve the handler from.");
         try
         {
-            return await HandleAsync(parsed, services, cancellationToken);
+            var context = new RequestFilterContext(parsed, RequestTransport.Mcp, services, null, cancellationToken);
+            var result = await RequestPipeline.InvokeAsync(context, () => HandleAsync(parsed, services, cancellationToken));
+            return !HasResult ? Text("Done.")
+                : result is FileResponse file ? await FileAsync(file, cancellationToken)
+                : Text(JsonSerializer.Serialize(result, result?.GetType() ?? typeof(object), ReihoJson.Options));
         }
         catch (RequestException e)
         {
@@ -86,7 +90,11 @@ internal abstract class RequestTool : McpServerTool
         "The arguments are not valid:" + string.Concat(errors.SelectMany(field =>
             field.Value.Select(message => field.Key.Length == 0 ? $"\n- {message}" : $"\n- {field.Key}: {message}")));
 
-    protected abstract Task<CallToolResult> HandleAsync(object request, IServiceProvider services, CancellationToken cancellationToken);
+    /// <summary>Whether the request has a result, i.e. is an <c>IRequest&lt;TResult&gt;</c>.</summary>
+    protected abstract bool HasResult { get; }
+
+    /// <summary>Runs the handler; its result, or <c>null</c> for an <see cref="IRequest"/>.</summary>
+    protected abstract ValueTask<object?> HandleAsync(object request, IServiceProvider services, CancellationToken cancellationToken);
 
     protected static CallToolResult Text(string text) => new() { Content = [new TextContentBlock { Text = text }] };
 
@@ -141,10 +149,12 @@ internal sealed class RequestTool<TRequest>(McpToolAttribute tool, string prefix
     : RequestTool(typeof(TRequest), tool, prefix)
     where TRequest : IRequest
 {
-    protected override async Task<CallToolResult> HandleAsync(object request, IServiceProvider services, CancellationToken cancellationToken)
+    protected override bool HasResult => false;
+
+    protected override async ValueTask<object?> HandleAsync(object request, IServiceProvider services, CancellationToken cancellationToken)
     {
         await services.GetRequiredService<IRequestHandler<TRequest>>().HandleAsync((TRequest)request, cancellationToken);
-        return Text("Done.");
+        return null;
     }
 }
 
@@ -152,11 +162,8 @@ internal sealed class RequestTool<TRequest, TResult>(McpToolAttribute tool, stri
     : RequestTool(typeof(TRequest), tool, prefix)
     where TRequest : IRequest<TResult>
 {
-    protected override async Task<CallToolResult> HandleAsync(object request, IServiceProvider services, CancellationToken cancellationToken)
-    {
-        var result = await services.GetRequiredService<IRequestHandler<TRequest, TResult>>().HandleAsync((TRequest)request, cancellationToken);
-        return result is FileResponse file
-            ? await FileAsync(file, cancellationToken)
-            : Text(JsonSerializer.Serialize(result, result?.GetType() ?? typeof(object), ReihoJson.Options));
-    }
+    protected override bool HasResult => true;
+
+    protected override async ValueTask<object?> HandleAsync(object request, IServiceProvider services, CancellationToken cancellationToken) =>
+        await services.GetRequiredService<IRequestHandler<TRequest, TResult>>().HandleAsync((TRequest)request, cancellationToken);
 }

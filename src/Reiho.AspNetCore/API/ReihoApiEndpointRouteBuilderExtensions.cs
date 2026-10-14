@@ -38,8 +38,11 @@ public static class ReihoApiEndpointRouteBuilderExtensions
             endpoints.MapPost(path ?? typeof(TRequest).Name, (HttpContext ctx, CancellationToken ct) =>
                 HandleAsync<TRequest>(ctx, ct, async request =>
                 {
-                    var handler = ctx.RequestServices.GetRequiredService<IRequestHandler<TRequest>>();
-                    await handler.HandleAsync(request, ct);
+                    await RequestPipeline.InvokeAsync(Filtered(request!, ctx, ct), async () =>
+                    {
+                        await ctx.RequestServices.GetRequiredService<IRequestHandler<TRequest>>().HandleAsync(request, ct);
+                        return null;
+                    });
                     ctx.Response.StatusCode = StatusCodes.Status204NoContent;
                 }))
             .WithFileMetadata<TRequest>()
@@ -56,8 +59,8 @@ public static class ReihoApiEndpointRouteBuilderExtensions
             endpoints.MapPost(path ?? typeof(TRequest).Name, (HttpContext ctx, CancellationToken ct) =>
                 HandleAsync<TRequest>(ctx, ct, async request =>
                 {
-                    var handler = ctx.RequestServices.GetRequiredService<IRequestHandler<TRequest, TResult>>();
-                    var result = await handler.HandleAsync(request, ct);
+                    var result = await RequestPipeline.InvokeAsync(Filtered(request!, ctx, ct), async () =>
+                        await ctx.RequestServices.GetRequiredService<IRequestHandler<TRequest, TResult>>().HandleAsync(request, ct));
                     if (result is FileResponse file)
                     {
                         await TypedResults.Stream(file.Content, file.ContentType, file.FileName).ExecuteAsync(ctx);
@@ -178,6 +181,9 @@ public static class ReihoApiEndpointRouteBuilderExtensions
         }
 
     }
+
+    private static RequestFilterContext Filtered(object request, HttpContext ctx, CancellationToken ct) =>
+        new(request, RequestTransport.Http, ctx.RequestServices, ctx, ct);
 
     // A new result each time: the problem details service adds to the ProblemDetails it writes, e.g. a trace id.
     private static IResult BodyRequired() =>
