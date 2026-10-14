@@ -54,7 +54,7 @@ internal abstract class RequestTool : McpServerTool
         try
         {
             var arguments = JsonSerializer.SerializeToElement(
-                request.Params?.Arguments ?? new Dictionary<string, JsonElement>(), ReihoJson.Compact);
+                request.Params?.Arguments ?? new Dictionary<string, JsonElement>(), ReihoJson.Options);
             parsed = arguments.Deserialize(RequestType, ReihoJson.Options);
         }
         catch (JsonException e)
@@ -134,6 +134,6 @@ internal sealed class RequestTool<TRequest, TResult>(McpToolAttribute tool, stri
     protected override async Task<CallToolResult> HandleAsync(object request, IServiceProvider services, CancellationToken cancellationToken)
     {
         var result = await services.GetRequiredService<IRequestHandler<TRequest, TResult>>().HandleAsync((TRequest)request, cancellationToken);
-        return Text(JsonSerializer.Serialize(result, result?.GetType() ?? typeof(object), ReihoJson.Compact));
+        return Text(JsonSerializer.Serialize(result, result?.GetType() ?? typeof(object), ReihoJson.Options));
     }
 }

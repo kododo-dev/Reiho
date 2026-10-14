@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Kododo.Reiho.AspNetCore.API;
 
@@ -16,7 +17,9 @@ public static class ReihoApiServiceCollectionExtensions
                             (t.interfaceType.GetGenericTypeDefinition() == typeof(IRequestHandler<>) ||
                              t.interfaceType.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)))
                 .ToList()
-                .ForEach(t => services.AddTransient(t.interfaceType, t.type));
+                // TryAdd: calling it again for the same assembly, e.g. from two libraries, adds nothing, and a handler
+                // the app registered first takes the place of the assembly's own.
+                .ForEach(t => services.TryAddTransient(t.interfaceType, t.type));
 
             return services;
         }

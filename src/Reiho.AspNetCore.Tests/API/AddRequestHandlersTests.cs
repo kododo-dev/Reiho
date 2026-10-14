@@ -68,4 +68,29 @@ public sealed class AddRequestHandlersTests
         var handler = provider.GetService<IRequestHandler<UnhandledRequest>>();
         Assert.Null(handler);
     }
+
+    [Fact]
+    public void Calling_it_twice_registers_each_handler_once()
+    {
+        var services = new ServiceCollection();
+        services.AddRequestHandlers(Assembly.GetExecutingAssembly());
+        services.AddRequestHandlers(Assembly.GetExecutingAssembly());
+
+        Assert.Single(services, d => d.ServiceType == typeof(IRequestHandler<PingRequest>));
+    }
+
+    [Fact]
+    public void Handler_registered_by_the_app_first_is_kept()
+    {
+        var services = new ServiceCollection();
+        services.AddTransient<IRequestHandler<PingRequest>, OtherPingHandler>();
+        services.AddRequestHandlers(Assembly.GetExecutingAssembly());
+
+        Assert.IsType<OtherPingHandler>(services.BuildServiceProvider().GetRequiredService<IRequestHandler<PingRequest>>());
+    }
+
+    private sealed class OtherPingHandler : IRequestHandler<PingRequest>
+    {
+        public Task HandleAsync(PingRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
 }
