@@ -1,4 +1,5 @@
-using Kododo.Reiho.AspNetCore.API;
+﻿using Kododo.Reiho.AspNetCore.API;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Kododo.Reiho.AspNetCore.Tests.API;
 
@@ -65,4 +66,32 @@ public sealed class GetColorHandler : IRequestHandler<GetColorRequest, ColorResu
 {
     public Task<ColorResult> HandleAsync(GetColorRequest request, CancellationToken cancellationToken)
         => Task.FromResult(new ColorResult(request.Color));
+}
+
+// ── Attributes applied to the endpoint ────────────────────────────────────────
+
+[Authorize]
+public sealed record GetSecretRequest : IRequest<string>;
+
+public sealed class GetSecretHandler : IRequestHandler<GetSecretRequest, string>
+{
+    public Task<string> HandleAsync(GetSecretRequest request, CancellationToken cancellationToken) => Task.FromResult("secret");
+}
+
+[AllowAnonymous]
+public sealed record GetPublicRequest : IRequest<string>;
+
+public sealed class GetPublicHandler : IRequestHandler<GetPublicRequest, string>
+{
+    public Task<string> HandleAsync(GetPublicRequest request, CancellationToken cancellationToken) => Task.FromResult("public");
+}
+
+[Authorize]
+public abstract record AdminRequest;
+
+public sealed record ResetRequest : AdminRequest, IRequest;
+
+public sealed class ResetHandler : IRequestHandler<ResetRequest>
+{
+    public Task HandleAsync(ResetRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
 }
