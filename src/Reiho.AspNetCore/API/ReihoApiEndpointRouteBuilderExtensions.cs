@@ -2,6 +2,7 @@
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -41,6 +42,7 @@ public static class ReihoApiEndpointRouteBuilderExtensions
                     await handler.HandleAsync(request, ct);
                     ctx.Response.StatusCode = StatusCodes.Status204NoContent;
                 }))
+            .WithFileMetadata<TRequest>()
             .WithRequestAttributes<TRequest>()
             .Describe<TRequest>()
             .Produces(StatusCodes.Status204NoContent);
@@ -56,6 +58,11 @@ public static class ReihoApiEndpointRouteBuilderExtensions
                 {
                     var handler = ctx.RequestServices.GetRequiredService<IRequestHandler<TRequest, TResult>>();
                     var result = await handler.HandleAsync(request, ct);
+                    if (result is FileResponse file)
+                    {
+                        await TypedResults.Stream(file.Content, file.ContentType, file.FileName).ExecuteAsync(ctx);
+                        return;
+                    }
                     ctx.Response.ContentType = "application/json";
                     await JsonSerializer.SerializeAsync(
                         ctx.Response.Body,
@@ -65,9 +72,10 @@ public static class ReihoApiEndpointRouteBuilderExtensions
                         cancellationToken: ct
                     );
                 }))
+            .WithFileMetadata<TRequest>()
             .WithRequestAttributes<TRequest>()
             .Describe<TRequest>()
-            .Produces<TResult>(StatusCodes.Status200OK, "application/json");
+            .ProducesResult<TResult>();
 
             return endpoints;
         }
@@ -118,20 +126,55 @@ public static class ReihoApiEndpointRouteBuilderExtensions
                     : (default, BodyRequired());
             }
 
+            // Only a request that receives files takes a form: a form needs no CORS preflight, so it is open to
+            // cross-site posts, which the endpoint's antiforgery metadata guards against.
+            if (RequestFiles.Of(typeof(TRequest)).Length > 0)
+            {
+                // The antiforgery middleware only records its verdict, and the form refuses to be read after a failed
+                // one; as for minimal APIs, the endpoint turns the post away.
+                if (ctx.Features.Get<IAntiforgeryValidationFeature>() is { IsValid: false })
+                    return (default, TypedResults.Problem(detail: "The antiforgery token is missing or not valid.", statusCode: StatusCodes.Status400BadRequest));
+                if (ctx.Request.HasFormContentType)
+                    return await ReadFormAsync<TRequest>(ctx, ct);
+            }
+
             try
             {
                 var request = await JsonSerializer.DeserializeAsync<TRequest>(ctx.Request.Body, ReihoJson.Options, cancellationToken: ct);
                 return request is null ? (default, BodyRequired()) : (request, null);
             }
-            catch (JsonException e)
+            catch (Exception e) when (e is JsonException or NotSupportedException)
             {
-                // The path names the field when the JSON is well formed but a value does not fit; the message is not
-                // returned, as it names .NET types.
-                var field = e.Path is { Length: > 2 } path && path.StartsWith("$.") ? path[2..] : null;
-                return (default, field is null
-                    ? TypedResults.Problem(detail: "The request body is not valid JSON for this request.", statusCode: StatusCodes.Status400BadRequest)
-                    : TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = ["The value is not valid."] }));
+                return (default, InvalidBody(e));
             }
+        }
+
+        private static async Task<(TRequest? Request, IResult? Problem)> ReadFormAsync<TRequest>(HttpContext ctx, CancellationToken ct)
+        {
+            IFormCollection form;
+            try
+            {
+                form = await ctx.Request.ReadFormAsync(ct);
+            }
+            catch (InvalidDataException)
+            {
+                return (default, TypedResults.Problem(detail: "The form is not valid.", statusCode: StatusCodes.Status400BadRequest));
+            }
+
+            TRequest? request;
+            try
+            {
+                request = RequestFiles.Fields(typeof(TRequest), form).Deserialize<TRequest>(ReihoJson.Options);
+            }
+            catch (Exception e) when (e is JsonException or NotSupportedException)
+            {
+                return (default, InvalidBody(e));
+            }
+            if (request is null)
+                return (default, BodyRequired());
+
+            RequestFiles.SetFiles(request, form.Files);
+            return (request, null);
         }
 
     }
@@ -140,11 +183,30 @@ public static class ReihoApiEndpointRouteBuilderExtensions
     private static IResult BodyRequired() =>
         TypedResults.Problem(detail: "A JSON body is required for this request.", statusCode: StatusCodes.Status400BadRequest);
 
+    // The path names the field when the JSON is well formed but a value does not fit; the message is not returned, as
+    // it names .NET types.
+    private static IResult InvalidBody(Exception e) =>
+        e is JsonException { Path: { Length: > 2 } path } && path.StartsWith("$.")
+            ? TypedResults.ValidationProblem(new Dictionary<string, string[]> { [path[2..]] = ["The value is not valid."] })
+            : TypedResults.Problem(detail: "The request body is not valid JSON for this request.", statusCode: StatusCodes.Status400BadRequest);
+
+    // Minimal APIs require an antiforgery token for form posts; so does a request that receives files, unless it says
+    // otherwise with [RequireAntiforgeryToken(false)], which, as a request attribute added later, takes precedence.
+    private static RouteHandlerBuilder WithFileMetadata<TRequest>(this RouteHandlerBuilder builder) =>
+        RequestFiles.Of(typeof(TRequest)).Length > 0 ? builder.WithMetadata(new RequireAntiforgeryTokenAttribute()) : builder;
+
+    private static RouteHandlerBuilder ProducesResult<TResult>(this RouteHandlerBuilder builder) =>
+        typeof(FileResponse).IsAssignableFrom(typeof(TResult))
+            ? builder.Produces(StatusCodes.Status200OK, typeof(Stream), "application/octet-stream")
+            : builder.Produces<TResult>(StatusCodes.Status200OK, "application/json");
+
     // The handler reads the body itself, so tell ApiExplorer and OpenAPI what the endpoint takes and returns.
     private static RouteHandlerBuilder Describe<TRequest>(this RouteHandlerBuilder builder)
     {
+        var form = RequestFiles.Of(typeof(TRequest)).Length > 0;
         builder
-            .Accepts(typeof(TRequest), isOptional: typeof(TRequest).GetConstructor(Type.EmptyTypes) != null, "application/json")
+            .Accepts(typeof(TRequest), isOptional: typeof(TRequest).GetConstructor(Type.EmptyTypes) != null,
+                form ? "multipart/form-data" : "application/json")
             .ProducesValidationProblem();
         if (typeof(TRequest).GetCustomAttribute<DescriptionAttribute>()?.Description is { } description)
             builder.WithSummary(description);

@@ -147,6 +147,45 @@ public sealed class McpToolTests
     }
 
     [Fact]
+    public async Task Call_ReturningATextFile_GivesItsTextAsAResource()
+    {
+        var (host, client) = await StartAsync(o => o.Include<ExportGreetingsRequest>());
+        using var _ = host;
+        await using var __ = client;
+
+        var result = await client.CallToolAsync("export_greetings_request", new Dictionary<string, object?> { ["format"] = "csv" });
+
+        var resource = Assert.IsType<TextResourceContents>(Assert.IsType<EmbeddedResourceBlock>(Assert.Single(result.Content)).Resource);
+        Assert.Equal("name\nAda", resource.Text);
+        Assert.Equal("file:///greetings.csv", resource.Uri);
+        Assert.StartsWith("text/csv", resource.MimeType);
+    }
+
+    [Fact]
+    public async Task Call_ReturningABinaryFile_GivesItAsABlob()
+    {
+        var (host, client) = await StartAsync(o => o.Include<ExportGreetingsRequest>());
+        using var _ = host;
+        await using var __ = client;
+
+        var result = await client.CallToolAsync("export_greetings_request", new Dictionary<string, object?> { ["format"] = "bin" });
+
+        var resource = Assert.IsType<BlobResourceContents>(Assert.IsType<EmbeddedResourceBlock>(Assert.Single(result.Content)).Resource);
+        Assert.Equal([1, 2, 3], resource.DecodedData.ToArray());
+    }
+
+    [Fact]
+    public void RequestReceivingFiles_CannotBeATool()
+    {
+        var services = new ServiceCollection();
+
+        var error = Assert.Throws<InvalidOperationException>(() => services.AddMcpServer().WithRequests(
+            Assembly.GetExecutingAssembly(), o => o.Include<UploadAvatarRequest>()));
+
+        Assert.Contains(nameof(UploadAvatarRequest), error.Message);
+    }
+
+    [Fact]
     public async Task Include_OffersAnUnmarkedRequest_WithAPrefix()
     {
         var (host, client) = await StartAsync(o =>

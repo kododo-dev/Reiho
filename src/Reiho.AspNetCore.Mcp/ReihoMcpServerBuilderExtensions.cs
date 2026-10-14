@@ -36,6 +36,9 @@ public static class ReihoMcpServerBuilderExtensions
             {
                 if (options.ToolFor(request) is not { } tool)
                     continue;
+                if (RequestFiles.Of(request).Length > 0)
+                    throw new InvalidOperationException(
+                        $"{request.FullName} receives files, which an MCP tool cannot be given. Offer it over HTTP only.");
                 var toolType = result is null
                     ? typeof(RequestTool<>).MakeGenericType(request)
                     : typeof(RequestTool<,>).MakeGenericType(request, result);

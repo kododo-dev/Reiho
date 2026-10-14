@@ -96,6 +96,18 @@ POST /DeleteUser
 | `IRequest<TResult>` | `200 OK` | JSON |
 | invalid request, `RequestException` | `4xx` | problem details (`application/problem+json`) |
 
+**Attributes:** attributes on the request type apply to its endpoint, as on a controller action, including those inherited from a base request:
+
+```csharp
+[Authorize(Roles = "Admin")]
+public sealed record DeleteUser(int Id) : IRequest;
+
+[AllowAnonymous]   // open, even in a group with RequireAuthorization()
+public sealed record GetStatus : IRequest<Status>;
+```
+
+This works for any endpoint metadata attribute, e.g. `[EnableRateLimiting]` or `[Tags]`. An `[Authorize]` request needs `UseAuthorization()` in the pipeline; without it, ASP.NET Core rejects calls to that endpoint rather than serving them unprotected.
+
 ---
 
 ## Validation and errors
@@ -132,17 +144,31 @@ if (await users.NameTakenAsync(request.Name, ct))
 
 The message becomes the problem's `detail`, so write it for the caller. Other exceptions are left to the application, e.g. its `UseExceptionHandler()`. With `AddProblemDetails()`, Reiho writes its problems through the app's `IProblemDetailsService`, so `CustomizeProblemDetails` applies to them too.
 
-**Attributes:** attributes on the request type apply to its endpoint, as on a controller action, including those inherited from a base request:
+---
+
+## Files
+
+A request receives files through `IFormFile` properties, or a list such as `IReadOnlyList<IFormFile>`, and takes `multipart/form-data`: its other properties come from the form's fields, the files from its file parts of the same name. Validation applies as usual:
 
 ```csharp
-[Authorize(Roles = "Admin")]
-public sealed record DeleteUser(int Id) : IRequest;
-
-[AllowAnonymous]   // open, even in a group with RequireAuthorization()
-public sealed record GetStatus : IRequest<Status>;
+public sealed record UploadAvatar(int UserId) : IRequest<string>
+{
+    [Required] public IFormFile? Avatar { get; init; }
+}
 ```
 
-This works for any endpoint metadata attribute, e.g. `[EnableRateLimiting]` or `[Tags]`. An `[Authorize]` request needs `UseAuthorization()` in the pipeline; without it, ASP.NET Core rejects calls to that endpoint rather than serving them unprotected.
+A form needs no CORS preflight, so it can be posted from another site with the user's cookies. As minimal APIs do for forms, such a request requires an antiforgery token: add `AddAntiforgery()` and `UseAntiforgery()`, and send the token with the form. A request that is safe without one, e.g. behind bearer authentication only, says so with `[RequireAntiforgeryToken(false)]`. Requests without files keep taking JSON only.
+
+A handler returns a file with `FileResponse`; it is the response body with its content type, and a download when it has a name:
+
+```csharp
+public sealed record ExportOrders : IRequest<FileResponse>;
+// in the handler
+return FileResponse.FromText(csv, "text/csv", "orders.csv");
+return new FileResponse(File.OpenRead(path), "application/pdf", "invoice.pdf");
+```
+
+An MCP tool returns a `FileResponse` as an embedded resource, as text for a text type; a request that receives files cannot be an MCP tool.
 
 ---
 

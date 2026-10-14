@@ -90,6 +90,27 @@ internal abstract class RequestTool : McpServerTool
 
     protected static CallToolResult Text(string text) => new() { Content = [new TextContentBlock { Text = text }] };
 
+    // A file as an embedded resource: text the model can read for a text type, base64 otherwise.
+    protected static async Task<CallToolResult> FileAsync(FileResponse file, CancellationToken cancellationToken)
+    {
+        byte[] bytes;
+        await using (var content = file.Content)
+        {
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, cancellationToken);
+            bytes = buffer.ToArray();
+        }
+
+        var uri = "file:///" + Uri.EscapeDataString(file.FileName ?? "file");
+        var mediaType = file.ContentType.Split(';')[0].Trim().ToLowerInvariant();
+        var isText = mediaType.StartsWith("text/") || mediaType is "application/json" or "application/xml" or "application/javascript"
+                     || mediaType.EndsWith("+json") || mediaType.EndsWith("+xml");
+        ResourceContents resource = isText
+            ? new TextResourceContents { Uri = uri, MimeType = file.ContentType, Text = Encoding.UTF8.GetString(bytes) }
+            : BlobResourceContents.FromBytes(bytes, uri, file.ContentType);
+        return new CallToolResult { Content = [new EmbeddedResourceBlock { Resource = resource }] };
+    }
+
     // An error the agent can read and act on, e.g. by correcting the arguments.
     private static CallToolResult Error(string message) =>
         new() { Content = [new TextContentBlock { Text = message }], IsError = true };
@@ -134,6 +155,8 @@ internal sealed class RequestTool<TRequest, TResult>(McpToolAttribute tool, stri
     protected override async Task<CallToolResult> HandleAsync(object request, IServiceProvider services, CancellationToken cancellationToken)
     {
         var result = await services.GetRequiredService<IRequestHandler<TRequest, TResult>>().HandleAsync((TRequest)request, cancellationToken);
-        return Text(JsonSerializer.Serialize(result, result?.GetType() ?? typeof(object), ReihoJson.Options));
+        return result is FileResponse file
+            ? await FileAsync(file, cancellationToken)
+            : Text(JsonSerializer.Serialize(result, result?.GetType() ?? typeof(object), ReihoJson.Options));
     }
 }
