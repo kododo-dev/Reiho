@@ -102,7 +102,7 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
                     using var reader = new StreamReader(stream);
                     var html = await reader.ReadToEndAsync();
                     var contextPath = CalculateBasePath(context);
-                    html = html.Replace(basePathPlaceholder, configuredBasePath is not null ? NormalizeBasePath(configuredBasePath) + contextPath : contextPath);
+                    html = html.Replace(basePathPlaceholder, ConfiguredPrefix(configuredBasePath, context) + contextPath);
                     foreach (var (placeholder, value) in options.Placeholders)
                         if (html.Contains(placeholder, StringComparison.Ordinal))
                             html = html.Replace(placeholder, await value(context));
@@ -132,6 +132,22 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
 
             return endpoints;
         }
+    }
+
+    /// <summary>
+    /// The configured base path for the prefix a reverse proxy stripped before the request reached the app. When the
+    /// app applied it itself (<c>UsePathBase</c> with the same value), it is already in <c>Request.PathBase</c>, which
+    /// the context path includes, so it is not added again.
+    /// </summary>
+    private static string ConfiguredPrefix(string? configuredBasePath, HttpContext context)
+    {
+        if (configuredBasePath is null) return "";
+        var prefix = NormalizeBasePath(configuredBasePath);
+        var requestBase = context.Request.PathBase.Value ?? "";
+        var applied = prefix.Length > 0 &&
+                      requestBase.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+                      (requestBase.Length == prefix.Length || requestBase[prefix.Length] == '/');
+        return applied ? "" : prefix;
     }
 
     private static string NormalizeBasePath(string basePath)

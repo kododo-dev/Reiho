@@ -100,13 +100,13 @@ Add to your `.csproj`:
 
 Place `__BASE_PATH__` in your `index.html` — replaced at runtime with the actual mount path. `rootPath` defaults to `"SPA/dist"`.
 
-When running behind a reverse proxy that strips a path prefix (e.g. Caddy's `handle_path`), set `ASPNETCORE_PATHBASE` to override the auto-calculated base path:
+When running behind a reverse proxy that strips a path prefix (e.g. Caddy's `handle_path`), set `ASPNETCORE_PATHBASE` to that prefix; the `MapGroup` path is added to it:
 
 ```
-ASPNETCORE_PATHBASE=/configway/demo/ui
+ASPNETCORE_PATHBASE=/configway/demo
 ```
 
-The value must be the full public prefix as seen by the browser — the proxy's stripped prefix plus the `MapGroup` path.
+If the app also calls `app.UsePathBase(app.Configuration["PathBase"])`, the prefix is not added twice.
 
 To put more per-request values into `index.html` (settings, an import map, a CSP nonce), add placeholders. Each is replaced after the base path, as is, so encode the value for where it lands:
 
