@@ -208,3 +208,70 @@ public sealed class SpaServingWithExplicitBasePathTests : IAsyncLifetime
         Assert.Contains($"{ConfiguredBasePath}{GroupPrefix}/", body);
     }
 }
+
+// The app applies the configured base path itself (app.UsePathBase(app.Configuration["PathBase"])), as when no proxy
+// strips the prefix: it is already in Request.PathBase and must not appear twice.
+public sealed class SpaServingWithAppliedBasePathTests : IAsyncLifetime
+{
+    private IHost? _host;
+    private HttpClient? _client;
+
+    private static readonly Assembly ThisAssembly = Assembly.GetExecutingAssembly();
+    private const string GroupPrefix = "/ui";
+    private const string ConfiguredBasePath = "/configway/demo";
+
+    public async Task InitializeAsync()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["PathBase"] = ConfiguredBasePath })
+            .Build();
+
+        _host = await new HostBuilder()
+            .ConfigureWebHost(web =>
+            {
+                web.UseTestServer();
+                web.ConfigureServices(services =>
+                {
+                    services.AddRouting();
+                    services.AddSingleton<IConfiguration>(config);
+                });
+                web.Configure(app =>
+                {
+                    app.UsePathBase(ConfiguredBasePath);
+                    app.UseRouting();
+                    app.UseEndpoints(endpoints =>
+                        endpoints.MapGroup(GroupPrefix).MapEmbeddedSpa(ThisAssembly, rootPath: "SPA/TestSpa"));
+                });
+            })
+            .StartAsync();
+
+        _client = _host.GetTestClient();
+    }
+
+    public async Task DisposeAsync()
+    {
+        _client?.Dispose();
+        if (_host is not null)
+        {
+            await _host.StopAsync();
+            _host.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Base_path_applied_by_the_app_is_not_doubled()
+    {
+        var body = await (await _client!.GetAsync($"{ConfiguredBasePath}{GroupPrefix}")).Content.ReadAsStringAsync();
+
+        Assert.Contains($"""<base href="{ConfiguredBasePath}{GroupPrefix}/">""", body);
+    }
+
+    [Fact]
+    public async Task Base_path_stripped_by_a_proxy_is_still_added()
+    {
+        // The same app behind a proxy that removed the prefix: UsePathBase does not match, the setting supplies it.
+        var body = await (await _client!.GetAsync(GroupPrefix)).Content.ReadAsStringAsync();
+
+        Assert.Contains($"""<base href="{ConfiguredBasePath}{GroupPrefix}/">""", body);
+    }
+}

@@ -305,26 +305,28 @@ app.MapGroup("/ui")
 
 ### Base path behind a reverse proxy
 
-By default the base path is calculated from the incoming request. This breaks when the application runs behind a reverse proxy that strips a path prefix before forwarding — for example Caddy's `handle_path`.
+By default the base path is calculated from the incoming request, including `Request.PathBase`. This breaks when the application runs behind a reverse proxy that strips a path prefix before forwarding, for example Caddy's `handle_path`: the app never sees the prefix the browser uses.
 
-Set the `ASPNETCORE_PATHBASE` environment variable to override the auto-calculated value:
+Set the `ASPNETCORE_PATHBASE` environment variable to the prefix the proxy strips:
 
 ```
-ASPNETCORE_PATHBASE=/configway/demo/ui
+ASPNETCORE_PATHBASE=/configway/demo
 ```
 
-The value must combine the prefix stripped by the proxy **and** the `MapGroup` path, so that asset URLs resolve correctly for the browser. With the example above and `MapGroup("/ui")`:
+With `MapGroup("/ui")`:
 
 - public URL: `https://example.com/configway/demo/ui/`
 - Caddy strips `/configway/demo`, passes `/ui/…` to the backend
-- `ASPNETCORE_PATHBASE=/configway/demo/ui` → `<base href="/configway/demo/ui/">`
+- `ASPNETCORE_PATHBASE=/configway/demo` → `<base href="/configway/demo/ui/">`
 - browser resolves `assets/app.js` → `/configway/demo/ui/assets/app.js` → Caddy strips prefix → `/ui/assets/app.js` ✓
 
-To apply the same value to ASP.NET Core's own routing and link generation, add this to `Program.cs`:
+An app can also apply the same value to its own routing and link generation, which is what it needs when the proxy passes the prefix on:
 
 ```csharp
 app.UsePathBase(app.Configuration["PathBase"] ?? "");
 ```
+
+When `UsePathBase` has already removed the prefix, it is in `Request.PathBase` and is not added a second time, so the same setting works whether or not the proxy strips the prefix.
 
 ### Custom base path placeholder
 
