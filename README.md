@@ -335,6 +335,32 @@ app.MapGroup("/ui").MapEmbeddedSpa(
     basePathPlaceholder: "%%BASE%%");
 ```
 
+### Per-request placeholders
+
+Other values can be put into `index.html` the same way as the base path: settings for the SPA, an import map, a nonce for a `Content-Security-Policy`. Use the overload that takes options:
+
+```csharp
+app.MapGroup("/ui").MapEmbeddedSpa(Assembly.GetExecutingAssembly(), o =>
+{
+    o.RootPath = "Frontend/dist";
+    o.Placeholder("__NONCE__", ctx => ctx.Items["csp-nonce"] as string ?? "");
+    o.Placeholder("__SETTINGS__", async ctx =>
+    {
+        var settings = await ctx.RequestServices.GetRequiredService<ISettingsStore>().GetAsync();
+        return JsonSerializer.Serialize(settings);
+    });
+});
+```
+
+```html
+<script nonce="__NONCE__">window.settings = __SETTINGS__</script>
+```
+
+- Placeholders are replaced after the base path, in the order they were added.
+- Values are inserted as is. Encode them for where they land: JSON in a script, attribute encoding in an attribute.
+- A value is only computed when its placeholder appears in `index.html`.
+- `index.html` is never cached, so every request gets its own values. Other files are served unchanged.
+
 ### Caching behaviour
 
 | File | Cache-Control |

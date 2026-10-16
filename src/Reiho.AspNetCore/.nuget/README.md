@@ -108,6 +108,16 @@ ASPNETCORE_PATHBASE=/configway/demo/ui
 
 The value must be the full public prefix as seen by the browser — the proxy's stripped prefix plus the `MapGroup` path.
 
+To put more per-request values into `index.html` (settings, an import map, a CSP nonce), add placeholders. Each is replaced after the base path, as is, so encode the value for where it lands:
+
+```csharp
+app.MapGroup("/ui").MapEmbeddedSpa(Assembly.GetExecutingAssembly(), o =>
+{
+    o.RootPath = "Frontend/dist";
+    o.Placeholder("__NONCE__", ctx => ctx.Items["csp-nonce"] as string ?? "");
+});
+```
+
 ## Links
 
 - Source and full documentation: https://github.com/kododo-dev/Reiho

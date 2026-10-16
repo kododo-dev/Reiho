@@ -28,8 +28,25 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
         public IEndpointRouteBuilder MapEmbeddedSpa(
             Assembly assembly,
             string rootPath = DefaultRootPath,
-            string basePathPlaceholder = DefaultBasePathPlaceholder)
+            string basePathPlaceholder = DefaultBasePathPlaceholder) =>
+            endpoints.MapEmbeddedSpa(assembly, o =>
+            {
+                o.RootPath = rootPath;
+                o.BasePathPlaceholder = basePathPlaceholder;
+            });
+
+        /// <summary>
+        /// Serves the SPA embedded in <paramref name="assembly"/>, with <paramref name="configure"/> setting the root
+        /// path, the base path placeholder and further placeholders replaced in <c>index.html</c> per request.
+        /// </summary>
+        public IEndpointRouteBuilder MapEmbeddedSpa(Assembly assembly, Action<EmbeddedSpaOptions> configure)
         {
+            ArgumentNullException.ThrowIfNull(configure);
+            var options = new EmbeddedSpaOptions();
+            configure(options);
+            var rootPath = options.RootPath;
+            var basePathPlaceholder = options.BasePathPlaceholder;
+
             var provider = new ManifestEmbeddedFileProvider(assembly, rootPath);
             var fileCache = PathCache.GetOrAdd((assembly, rootPath),
                 _ => new ConcurrentDictionary<string, CachedFile>());
@@ -86,6 +103,9 @@ public static class ReihoSpaEndpointRouteBuilderExtensions
                     var html = await reader.ReadToEndAsync();
                     var contextPath = CalculateBasePath(context);
                     html = html.Replace(basePathPlaceholder, configuredBasePath is not null ? NormalizeBasePath(configuredBasePath) + contextPath : contextPath);
+                    foreach (var (placeholder, value) in options.Placeholders)
+                        if (html.Contains(placeholder, StringComparison.Ordinal))
+                            html = html.Replace(placeholder, await value(context));
                     fileBytes = System.Text.Encoding.UTF8.GetBytes(html);
                 }
                 else
