@@ -13,7 +13,7 @@ public sealed class RequestHandlingTests : IAsyncLifetime
     private IHost? _host;
     private HttpClient? _client;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await new HostBuilder()
             .ConfigureWebHost(web =>
@@ -39,7 +39,7 @@ public sealed class RequestHandlingTests : IAsyncLifetime
         PingHandler.CallCount = 0;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _client?.Dispose();
         if (_host is not null)

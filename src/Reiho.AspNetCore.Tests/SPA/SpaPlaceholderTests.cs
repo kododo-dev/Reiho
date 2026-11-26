@@ -16,7 +16,7 @@ public sealed class SpaPlaceholderTests : IAsyncLifetime
     private static readonly Assembly ThisAssembly = Assembly.GetExecutingAssembly();
     private const string GroupPrefix = "/ui";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await new HostBuilder()
             .ConfigureWebHost(web =>
@@ -51,7 +51,7 @@ public sealed class SpaPlaceholderTests : IAsyncLifetime
         _client = _host.GetTestClient();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _client?.Dispose();
         if (_host is not null)

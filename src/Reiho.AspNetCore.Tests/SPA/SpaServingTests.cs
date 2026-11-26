@@ -21,7 +21,7 @@ public sealed class SpaServingTests : IAsyncLifetime
     private static readonly Assembly ThisAssembly = Assembly.GetExecutingAssembly();
     private const string GroupPrefix = "/ui";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await new HostBuilder()
             .ConfigureWebHost(web =>
@@ -44,7 +44,7 @@ public sealed class SpaServingTests : IAsyncLifetime
         _client = _host.GetTestClient();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _client?.Dispose();
         if (_host is not null)
@@ -155,7 +155,7 @@ public sealed class SpaServingWithExplicitBasePathTests : IAsyncLifetime
     private const string GroupPrefix = "/ui";
     private const string ConfiguredBasePath = "/configway/demo";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -188,7 +188,7 @@ public sealed class SpaServingWithExplicitBasePathTests : IAsyncLifetime
         _client = _host.GetTestClient();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _client?.Dispose();
         if (_host is not null)
@@ -220,7 +220,7 @@ public sealed class SpaServingWithAppliedBasePathTests : IAsyncLifetime
     private const string GroupPrefix = "/ui";
     private const string ConfiguredBasePath = "/configway/demo";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["PathBase"] = ConfiguredBasePath })
@@ -248,7 +248,7 @@ public sealed class SpaServingWithAppliedBasePathTests : IAsyncLifetime
         _client = _host.GetTestClient();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _client?.Dispose();
         if (_host is not null)

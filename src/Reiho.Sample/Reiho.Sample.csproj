@@ -2,14 +2,14 @@
 
   <!-- A runnable tour of Reiho; see README.md next to this file. Not packed. -->
   <PropertyGroup>
-    <TargetFrameworks>net10.0</TargetFrameworks>
+    <TargetFramework>net11.0</TargetFramework>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Reiho.AspNetCore\Reiho.AspNetCore.csproj" />
     <ProjectReference Include="..\Reiho.AspNetCore.Mcp\Reiho.AspNetCore.Mcp.csproj" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="11.*" />
   </ItemGroup>
 
 </Project>
