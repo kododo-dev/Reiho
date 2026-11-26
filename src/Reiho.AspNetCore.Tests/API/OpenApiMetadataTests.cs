@@ -14,7 +14,7 @@ public sealed class OpenApiMetadataTests : IAsyncLifetime
 {
     private IHost? _host;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await new HostBuilder()
             .ConfigureWebHost(web =>
@@ -35,7 +35,7 @@ public sealed class OpenApiMetadataTests : IAsyncLifetime
             .StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host is not null)
         {

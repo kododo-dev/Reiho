@@ -15,7 +15,7 @@ public sealed class TelemetryTests : IAsyncLifetime
     private IHost? _host;
     private HttpClient? _client;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await new HostBuilder()
             .ConfigureLogging(logging => logging.AddProvider(_logs).SetMinimumLevel(LogLevel.Debug))
@@ -37,7 +37,7 @@ public sealed class TelemetryTests : IAsyncLifetime
         _client = _host.GetTestClient();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _client?.Dispose();
         if (_host is not null)

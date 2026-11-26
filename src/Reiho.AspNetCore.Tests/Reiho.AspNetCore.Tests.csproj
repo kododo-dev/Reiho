@@ -1,16 +1,17 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+    <!-- xUnit1051 asks for TestContext.Current.CancellationToken in every call; the tests are short. -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>
-    <AspNetCoreTestVersion Condition="'$(TargetFramework)' == 'net8.0'">8.*</AspNetCoreTestVersion>
-    <AspNetCoreTestVersion Condition="'$(TargetFramework)' == 'net9.0'">9.*</AspNetCoreTestVersion>
     <AspNetCoreTestVersion Condition="'$(TargetFramework)' == 'net10.0'">10.*</AspNetCoreTestVersion>
+    <AspNetCoreTestVersion Condition="'$(TargetFramework)' == 'net11.0'">11.*</AspNetCoreTestVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,12 +22,12 @@
   <ItemGroup>
     <!-- Follows the runtime the tests run on. -->
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="$(AspNetCoreTestVersion)" />
-    <!-- 10.x on every target: the .NET 10 SDK prunes 8.x and 9.x as part of the shared framework,
+    <!-- Follows the runtime too: the SDK prunes older versions as part of the shared framework,
          which drops the build task that writes the embedded files manifest. -->
-    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.*" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
-    <PackageReference Include="xunit" Version="2.*" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.*">
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="$(AspNetCoreTestVersion)" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.*" />
+    <PackageReference Include="xunit.v3" Version="3.*" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.*">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>

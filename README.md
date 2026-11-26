@@ -279,7 +279,7 @@ Add to your `.csproj`:
 </ItemGroup>
 ```
 
-`Microsoft.Extensions.FileProviders.Embedded` provides the build task that writes the manifest. Use a 10.x version on every target framework, net8.0 and net9.0 included. The .NET 10 SDK prunes 8.x and 9.x as part of the shared framework, which drops the task, so the manifest is missing and `MapEmbeddedSpa` fails at startup.
+`Microsoft.Extensions.FileProviders.Embedded` provides the build task that writes the manifest. Use version 10.x or later. The SDK prunes older versions as part of the shared framework, which drops the task, so the manifest is missing and `MapEmbeddedSpa` fails at startup.
 
 Place `__BASE_PATH__` somewhere in your `index.html` — it is replaced at runtime with the actual mount path so the SPA router works correctly regardless of where it is mounted:
 
@@ -409,7 +409,7 @@ app.MapMcp("/mcp").RequireAuthorization();
 
 Requests without `[McpTool]` are not offered. A library that cannot reference the attribute's version of Reiho includes its requests with `o.Include<TRequest>(new McpToolAttribute { ReadOnly = true })`.
 
-A tool call does not go through the request's HTTP endpoint, so endpoint filters and the endpoint's authorization do not apply: protect the MCP endpoint itself. `[Authorize]` on a request is honoured per tool after `AddAuthorizationFilters()`. On net8.0 and net9.0 the MCP SDK brings the 10.x `Microsoft.Extensions.*` packages; align the app's own `Microsoft.Extensions.Logging` with them if it references an older one.
+A tool call does not go through the request's HTTP endpoint, so endpoint filters and the endpoint's authorization do not apply: protect the MCP endpoint itself. `[Authorize]` on a request is honoured per tool after `AddAuthorizationFilters()`.
 
 ---
 
@@ -441,7 +441,7 @@ app.Run();
 
 ## Requirements
 
-- .NET 8 or later
+- .NET 10 or later
 - ASP.NET Core
 
 ---

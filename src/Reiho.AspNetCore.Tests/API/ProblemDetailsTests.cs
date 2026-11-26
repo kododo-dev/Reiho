@@ -13,7 +13,7 @@ public sealed class ProblemDetailsTests : IAsyncLifetime
     private IHost? _host;
     private HttpClient? _client;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await new HostBuilder()
             .ConfigureWebHost(web =>
@@ -36,7 +36,7 @@ public sealed class ProblemDetailsTests : IAsyncLifetime
         _client = _host.GetTestClient();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _client?.Dispose();
         if (_host is not null)
