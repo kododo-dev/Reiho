@@ -2,7 +2,7 @@
 
   <!-- A runnable tour of Reiho; see README.md next to this file. Not packed. -->
   <PropertyGroup>
-    <TargetFramework>net11.0</TargetFramework>
+    <TargetFrameworks>net11.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
